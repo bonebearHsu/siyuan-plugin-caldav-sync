@@ -81,4 +81,4 @@ npm run test:e2e       # real CalDAV end-to-end against Radicale
 
 ## License
 
-MIT
+AGPL-3.0 license
