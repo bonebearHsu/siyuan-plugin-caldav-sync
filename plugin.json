@@ -24,7 +24,8 @@
   "funding": {
     "openCollective": "",
     "patreon": "",
-    "github": "",
+    "github": "bonebear",
     "custom": [""]
-  }
+  },
+  "keywords": ["caldav", "calendar", "todo", "task", "日历", "任务", "同步", "radicale", "nextcloud", "baikal"]
 }

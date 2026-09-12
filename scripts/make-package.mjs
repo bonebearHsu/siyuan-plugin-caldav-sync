@@ -19,8 +19,8 @@ const files = [
   "plugin.json",
   "README.md",
   "README_zh_CN.md",
-  ["assets/icon.png", "icon.png"],
-  ["assets/preview.png", "preview.png"],
+  ["icon.png", "icon.png"],
+  ["preview.png", "preview.png"],
   ["src/i18n/en_US.json", "i18n/en_US.json"],
   ["src/i18n/zh_CN.json", "i18n/zh_CN.json"]
 ];
