@@ -101,4 +101,5 @@ npm run test:e2e       # 真实 CalDAV 端到端（自动拉起本地 Radicale�
 
 ## 许可
 
-MIT
+AGPL-3.0 license
+
