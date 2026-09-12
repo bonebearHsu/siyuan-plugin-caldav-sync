@@ -1,0 +1,2474 @@
+/* CalDAV日历任务 —— 跟随思源主题变量，自动适配明暗 */
+
+.caldav-root {
+  --caldav-accent: var(--b3-theme-primary, #3575f0);
+  --caldav-bg: var(--b3-theme-background, #fff);
+  --caldav-bg-2: var(--b3-theme-background-light, #f6f8fa);
+  --caldav-bg-3: var(--b3-theme-surface, #eef1f5);
+  --caldav-border: var(--b3-border-color, #e4e7ed);
+  --caldav-text: var(--b3-theme-on-background, #1f2329);
+  --caldav-text-2: var(--b3-theme-on-surface, #646a73);
+  --caldav-danger: var(--b3-theme-error, #d23f31);
+  height: 100%;
+  font-size: 13px;
+  color: var(--caldav-text);
+}
+
+/* ===== 布局 ===== */
+.caldav-app {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background: var(--caldav-bg);
+}
+
+.caldav-sidebar {
+  width: 208px;
+  flex: 0 0 208px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--caldav-border);
+  background: var(--caldav-bg-2);
+  padding: 12px 10px;
+  gap: 4px;
+}
+
+.caldav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px 10px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.caldav-brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--caldav-accent);
+  color: #fff;
+  flex: 0 0 26px;
+}
+
+.caldav-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.caldav-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--caldav-text-2);
+  cursor: pointer;
+  font-size: 12.5px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.caldav-nav-btn:hover { background: var(--caldav-bg-3); }
+.caldav-nav-btn.is-active {
+  background: var(--caldav-accent);
+  color: #fff;
+}
+.caldav-nav-btn.is-active svg { stroke: #fff; }
+
+/* 日历列表 */
+.caldav-cal-section {
+  flex: 1;
+  overflow: auto;
+  margin-top: 10px;
+  min-height: 0;
+}
+
+.caldav-cal-head {
+  font-size: 11px;
+  color: var(--caldav-text-2);
+  padding: 0 6px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.caldav-cal-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.caldav-cal-item:hover { background: var(--caldav-bg-3); }
+.caldav-cal-item.is-off .caldav-cal-name { opacity: 0.45; text-decoration: line-through; }
+
+.caldav-cal-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 9px;
+}
+
+.caldav-cal-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.caldav-cal-toggle { opacity: 0; }
+.caldav-cal-item:hover .caldav-cal-toggle { opacity: 1; }
+
+.caldav-cal-empty {
+  color: var(--caldav-text-2);
+  font-size: 12px;
+  text-align: center;
+  padding: 18px 6px;
+  line-height: 2;
+}
+
+.caldav-link {
+  border: none;
+  background: none;
+  color: var(--caldav-accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}
+
+.caldav-sidebar-foot {
+  border-top: 1px solid var(--caldav-border);
+  padding-top: 8px;
+}
+
+.caldav-sync-status {
+  font-size: 11px;
+  color: var(--caldav-text-2);
+  padding: 0 6px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caldav-sync-status.has-error { color: var(--caldav-danger); }
+
+.caldav-foot-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* ===== 主区 ===== */
+.caldav-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.caldav-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--caldav-border);
+  gap: 8px;
+}
+
+.caldav-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.caldav-cursor-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.caldav-toolbar-right {
+  display: flex;
+  gap: 6px;
+}
+
+/* 按钮 */
+.caldav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 8px;
+  background: var(--caldav-bg);
+  color: var(--caldav-text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  transition: all 0.15s;
+}
+
+.caldav-btn:hover {
+  border-color: var(--caldav-accent);
+  color: var(--caldav-accent);
+  background: color-mix(in srgb, var(--caldav-accent) 7%, var(--caldav-bg));
+}
+
+.caldav-btn-primary {
+  background: var(--caldav-accent);
+  border-color: var(--caldav-accent);
+  color: #fff;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--caldav-accent) 32%, transparent);
+}
+
+.caldav-btn-primary:hover {
+  filter: brightness(1.06);
+  color: #fff;
+  background: var(--caldav-accent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--caldav-accent) 40%, transparent);
+}
+
+.caldav-btn-danger {
+  color: var(--caldav-danger);
+  border-color: color-mix(in srgb, var(--caldav-danger) 38%, var(--caldav-border));
+}
+
+.caldav-btn-danger:hover {
+  background: color-mix(in srgb, var(--caldav-danger) 10%, var(--caldav-bg));
+  border-color: var(--caldav-danger);
+  color: var(--caldav-danger);
+}
+
+.caldav-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--caldav-text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.caldav-icon-btn:hover {
+  background: var(--caldav-bg-3);
+  color: var(--caldav-text);
+}
+
+.caldav-view {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* ===== 月视图 ===== */
+.cal-month {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.cal-month-weeks {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--caldav-border);
+}
+
+.cal-month-weeklabel {
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: var(--caldav-text-2);
+}
+
+.cal-month-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+  min-height: 0;
+}
+
+.cal-month-cell {
+  border-right: 1px solid var(--caldav-border);
+  border-bottom: 1px solid var(--caldav-border);
+  padding: 4px 5px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: default;
+}
+
+.cal-month-cell:nth-child(7n) { border-right: none; }
+.cal-month-cell:hover { background: var(--caldav-bg-2); }
+.cal-month-cell.is-out { opacity: 0.45; }
+/* 今日单元格：加深底色 + 内描边加粗（用 inset 阴影避免挤动网格布局） */
+.cal-month-cell.is-today {
+  background: color-mix(in srgb, var(--caldav-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--caldav-accent) 70%, transparent);
+}
+.cal-month-cell.is-today:hover {
+  background: color-mix(in srgb, var(--caldav-accent) 20%, transparent);
+}
+
+.cal-month-daynum {
+  font-size: 11.5px;
+  color: var(--caldav-text-2);
+  margin-bottom: 2px;
+}
+
+.cal-today-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--caldav-accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 11.5px;
+}
+
+.cal-month-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+/* 条目 chip */
+.cal-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px 1px 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  background: color-mix(in srgb, var(--cal-color, #64748b) 12%, transparent);
+  color: var(--caldav-text);
+  cursor: pointer;
+  border-left: 3px solid var(--cal-color, #64748b);
+  line-height: 1.6;
+  min-width: 0;
+}
+
+.cal-chip:hover { filter: brightness(0.96); }
+
+.cal-chip-time {
+  color: var(--caldav-text-2);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-chip-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.cal-chip.is-done .cal-chip-title {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.cal-chip-repeat { color: var(--cal-color); flex: 0 0 auto; }
+
+.cal-chip-check {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--cal-color, #64748b);
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.cal-chip-todo.is-done .cal-chip-check,
+.cal-chip-check:hover {
+  background: var(--cal-color, #64748b);
+  color: #fff;
+  border-color: var(--cal-color, #64748b);
+}
+
+.cal-chip-more {
+  font-size: 11px;
+  color: var(--caldav-text-2);
+  padding-left: 8px;
+  cursor: pointer;
+}
+
+/* ===== 周/日视图 ===== */
+.cal-wk {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.cal-wk-header {
+  display: flex;
+  border-bottom: 1px solid var(--caldav-border);
+}
+
+.cal-wk-gutterhead { flex: 0 0 48px; }
+
+.cal-wk-days {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 7), 1fr);
+}
+
+.cal-wk-dayhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 0;
+  font-size: 12px;
+  cursor: default;
+}
+
+.cal-wk-dayhead.is-today .cal-wk-num {
+  background: var(--caldav-accent);
+  color: #fff;
+  border-radius: 50%;
+}
+
+.cal-wk-wd { color: var(--caldav-text-2); font-size: 11px; }
+.cal-wk-num { font-weight: 600; font-size: 15px; padding: 2px 6px; }
+
+.cal-wk-allday {
+  display: flex;
+  border-bottom: 1px solid var(--caldav-border);
+  min-height: 30px;
+  max-height: 96px;
+  overflow: auto;
+}
+
+.cal-wk-allday-label {
+  font-size: 10.5px;
+  color: var(--caldav-text-2);
+  padding: 6px 4px;
+  text-align: center;
+}
+
+.cal-wk-allday-cells {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 7), 1fr);
+}
+
+.cal-wk-allday-cell {
+  border-left: 1px solid var(--caldav-border);
+  padding: 2px 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cal-wk-scroll {
+  flex: 1;
+  display: flex;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.cal-wk-gutter {
+  flex: 0 0 48px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-wk-hour {
+  position: relative;
+  border-bottom: none;
+}
+
+.cal-wk-hour span {
+  position: absolute;
+  top: -7px;
+  right: 6px;
+  font-size: 10.5px;
+  color: var(--caldav-text-2);
+}
+
+.cal-wk-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 7), 1fr);
+  position: relative;
+}
+
+.cal-wk-col {
+  position: relative;
+  border-left: 1px solid var(--caldav-border);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--caldav-border) 0,
+    var(--caldav-border) 1px,
+    transparent 1px,
+    transparent 44px
+  );
+}
+
+.cal-wk-block {
+  position: absolute;
+  left: 3px;
+  right: 5px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--cal-color, #64748b) 14%, var(--caldav-bg));
+  border-left: 3px solid var(--cal-color, #64748b);
+  padding: 2px 6px;
+  overflow: hidden;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.4;
+  z-index: 1;
+}
+
+.cal-wk-block:hover { filter: brightness(0.96); z-index: 2; }
+
+.cal-wk-block-time { color: var(--caldav-text-2); font-size: 10.5px; }
+.cal-wk-block-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.cal-wk-block-loc { color: var(--caldav-text-2); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; }
+
+.cal-wk-nowline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--caldav-danger);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.cal-wk-nowline::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--caldav-danger);
+}
+
+/* ===== 任务视图 ===== */
+.cal-task-view {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 20px 40px;
+  height: 100%;
+  overflow: auto;
+}
+
+.cal-task-summary {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.cal-task-stat {
+  flex: 1;
+  background: var(--caldav-bg-2);
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.cal-task-stat b { font-size: 20px; font-weight: 700; display: block; }
+.cal-task-stat span { font-size: 11.5px; color: var(--caldav-text-2); }
+.cal-stat-today b { color: var(--caldav-accent); }
+.cal-stat-overdue b { color: var(--caldav-danger); }
+.cal-stat-done b { color: #10b981; }
+
+.cal-task-filterbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cal-task-filter {
+  flex: 0 0 auto;
+  max-width: 220px;
+  padding: 7px 28px 7px 12px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 8px;
+  background: var(--caldav-bg) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M3 4.5L6 7.5L9 4.5' stroke='%23646a73' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 10px center;
+  color: var(--caldav-text);
+  font-size: 13px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.cal-task-filter:hover { border-color: var(--caldav-accent); }
+.cal-task-filter:focus { outline: none; border-color: var(--caldav-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--caldav-accent) 20%, transparent); }
+
+.cal-task-quick { flex: 1; }
+
+.cal-task {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 9px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  background: var(--caldav-bg);
+  transition: all 0.15s;
+  border-left: 3px solid var(--cal-color, transparent);
+}
+
+.cal-task:hover { box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07); }
+.cal-task.is-done .cal-task-title { text-decoration: line-through; opacity: 0.5; }
+
+.cal-task-check {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1.5px solid var(--cal-color, #94a3b8);
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.cal-task.is-done .cal-task-check {
+  background: var(--cal-color, #10b981);
+  border-color: var(--cal-color, #10b981);
+  color: #fff;
+}
+
+.cal-task-body { flex: 1; min-width: 0; }
+.cal-task-title { font-size: 13px; line-height: 1.5; }
+
+.cal-task-priority {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--caldav-danger) 12%, transparent);
+  color: var(--caldav-danger);
+  vertical-align: 1px;
+}
+
+.cal-task-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--caldav-text-2);
+  margin-top: 2px;
+  overflow: hidden;
+}
+
+.cal-task-meta > span { flex: 0 0 auto; }
+.cal-task-desc { overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto !important; min-width: 0; }
+
+.cal-task-cal { display: inline-flex; align-items: center; gap: 4px; }
+.cal-task-cal i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.cal-task-overdue { color: var(--caldav-danger); font-weight: 500; }
+.cal-task.is-overdue { border-left-color: var(--caldav-danger); }
+
+.cal-task-empty {
+  text-align: center;
+  color: var(--caldav-text-2);
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+/* ===== 弹窗（编辑/设置）—— 跟随思源主题风格 ===== */
+.caldav-editor, .caldav-settings, .caldav-catmgr {
+  /* 全部取自思源 b3 主题变量，深浅色主题自动适配 */
+  --ed-page: var(--b3-theme-background, #fff);
+  --ed-card: var(--b3-theme-surface, var(--b3-theme-background, #fff));
+  --ed-input: var(--b3-theme-background-light, var(--b3-theme-surface, #f6f8fa));
+  --ed-input-hover: color-mix(in srgb, var(--b3-theme-background-light, #f6f8fa) 90%, var(--b3-theme-on-background, #1f2329) 10%);
+  --ed-border: var(--b3-border-color, #e4e7ed);
+  --ed-text: var(--b3-theme-on-background, #1f2329);
+  --ed-text-2: var(--b3-theme-on-surface, #646a73);
+  --ed-accent: var(--b3-theme-primary, #3575f0);
+  --ed-accent-2: var(--b3-theme-primary-light, var(--b3-theme-primary, #3575f0));
+  --ed-danger: var(--b3-theme-error, #d23f31);
+
+  /* 编辑器内覆盖思源变量，使既有 .caldav-* 组件自动适配暖色 */
+  --caldav-accent: var(--ed-accent);
+  --caldav-bg: var(--ed-card);
+  --caldav-bg-2: var(--ed-page);
+  --caldav-bg-3: var(--ed-input);
+  --caldav-border: var(--ed-border);
+  --caldav-text: var(--ed-text);
+  --caldav-text-2: var(--ed-text-2);
+  --caldav-danger: var(--ed-danger);
+  --caldav-input-bg: var(--ed-input);
+  --caldav-inset: var(--ed-input);
+
+  font-size: 13px;
+  color: var(--caldav-text);
+  background: var(--caldav-bg-2);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 深色主题保底：b3 变量本身随主题切换，无需另行覆盖 */
+
+/* 中部可滚动区域：头部与底部按钮固定，仅中间滚动 */
+.caldav-editor-form, .caldav-settings-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 2px 6px 6px 2px;
+}
+
+.caldav-editor-form, .caldav-settings-form { padding: 12px 14px 6px; }
+
+/* 自定义滚动条 */
+.caldav-editor-form::-webkit-scrollbar,
+.caldav-settings-form::-webkit-scrollbar { width: 9px; }
+.caldav-editor-form::-webkit-scrollbar-thumb,
+.caldav-settings-form::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--caldav-text-2) 35%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.caldav-editor-form::-webkit-scrollbar-thumb:hover,
+.caldav-settings-form::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--caldav-text-2) 55%, transparent);
+  background-clip: content-box;
+}
+.caldav-editor-form { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--caldav-text-2) 40%, transparent) transparent; }
+.caldav-settings-form { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--caldav-text-2) 40%, transparent) transparent; }
+
+.caldav-editor-head {
+  flex: 0 0 auto;
+  background: var(--caldav-bg-2);
+  padding: 0;
+  border-bottom: 1px solid var(--caldav-border);
+}
+
+/* 标题行 */
+.caldav-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.caldav-title-row .caldav-title-input {
+  flex: 1;
+  width: 100%;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 12px 42px 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--caldav-border);
+  background: var(--caldav-input-bg);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.caldav-title-row .caldav-title-input:focus {
+  background: color-mix(in srgb, var(--caldav-accent) 5%, var(--caldav-input-bg));
+  border-color: var(--caldav-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--caldav-accent) 14%, transparent);
+}
+.caldav-icon-btn {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--caldav-border);
+  border-radius: 9px;
+  background: var(--caldav-bg);
+  color: var(--caldav-accent);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.caldav-icon-btn:hover {
+  border-color: var(--caldav-accent);
+  background: color-mix(in srgb, var(--caldav-accent) 10%, var(--caldav-bg));
+  transform: translateY(-1px);
+}
+.caldav-icon-btn svg { width: 16px; height: 16px; }
+
+/* Tabs */
+.caldav-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--caldav-border);
+}
+.caldav-tab {
+  position: relative;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--caldav-text-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.caldav-tab:hover { color: var(--caldav-accent); }
+.caldav-tab.is-active {
+  color: var(--caldav-accent);
+  font-weight: 600;
+}
+.caldav-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--caldav-accent);
+}
+
+.caldav-tab-panel { padding: 0; }
+
+/* 分组 */
+.caldav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.caldav-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--caldav-text);
+  padding-left: 10px;
+  position: relative;
+}
+.caldav-section-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--caldav-accent);
+}
+.caldav-section-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--caldav-accent);
+}
+.caldav-section-icon svg { width: 14px; height: 14px; }
+
+/* 字段 */
+.caldav-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.caldav-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--caldav-text-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.caldav-field-label svg { width: 13px; height: 13px; color: var(--caldav-text-2); }
+
+.caldav-field-row { display: flex; gap: 12px; align-items: stretch; }
+.caldav-field-row > .caldav-field { flex: 1; min-width: 0; }
+
+.caldav-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.caldav-input-icon {
+  position: absolute;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--caldav-text-2);
+  pointer-events: none;
+  z-index: 1;
+}
+.caldav-input-icon svg { width: 15px; height: 15px; }
+.caldav-input-icon--static { color: var(--caldav-text-2); }
+.caldav-field-icon .caldav-input {
+  padding-left: 32px;
+}
+.caldav-input-suffix {
+  position: absolute;
+  right: 9px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--caldav-text-2);
+  pointer-events: none;
+  z-index: 1;
+}
+.caldav-input-suffix svg { width: 13px; height: 13px; }
+.caldav-field-icon .caldav-input:not(select) { padding-right: 28px; }
+.caldav-field-icon select.caldav-input { padding-right: 28px; }
+
+.caldav-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--caldav-border);
+  border-radius: 9px;
+  background: var(--caldav-input-bg);
+  color: var(--caldav-text);
+  padding: 8px 11px;
+  font-size: 13px;
+  line-height: 1.4;
+  outline: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.caldav-input::placeholder { color: var(--caldav-text-2); opacity: 0.6; }
+.caldav-input:hover { border-color: color-mix(in srgb, var(--caldav-accent) 42%, var(--caldav-border)); }
+.caldav-input:focus {
+  border-color: var(--caldav-accent);
+  background: color-mix(in srgb, var(--caldav-accent) 6%, var(--caldav-bg));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--caldav-accent) 18%, transparent);
+}
+textarea.caldav-input { resize: vertical; font-family: inherit; line-height: 1.5; }
+textarea.caldav-input.caldav-textarea { min-height: 120px; padding: 12px; }
+select.caldav-input { cursor: pointer; appearance: none; -webkit-appearance: none; color-scheme: light; }
+.b3-theme-dark select.caldav-input { color-scheme: dark; }
+/* 下拉弹出列表跟随主题变量（原为固定暖色浅底，现跟随思源深浅色） */
+select.caldav-input option {
+  background: var(--ed-card, #fff);
+  color: var(--ed-text, #1f2329);
+  padding: 6px 10px;
+}
+select.caldav-input option:checked,
+select.caldav-input option:hover {
+  background: var(--ed-input, #f6f8fa);
+  color: var(--ed-text, #1f2329);
+}
+
+/* 原生 date/time 输入框：统一关闭状态风格；picker 弹层跟随思源主题深浅 */
+input.caldav-input[type="date"],
+input.caldav-input[type="time"] {
+  font-variant-numeric: tabular-nums;
+}
+.b3-theme-dark input.caldav-input[type="date"],
+.b3-theme-dark input.caldav-input[type="time"] { color-scheme: dark; }
+input.caldav-input[type="date"]::-webkit-calendar-picker-indicator,
+input.caldav-input[type="time"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 8px;
+  width: 15px;
+  height: 15px;
+  opacity: 0.55;
+  cursor: pointer;
+}
+input.caldav-input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 0.85;
+}
+
+/* 日历自定义下拉：触发按钮 + 暖色浅底弹层（替代原生 select，弹层样式完全可控） */
+.caldav-cal-trigger {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  font: inherit;
+  color: var(--caldav-text);
+  padding-left: 34px;
+  width: 100%;
+  cursor: pointer;
+}
+.caldav-cal-trigger .caldav-input-suffix { margin-left: auto; transition: transform 0.15s; }
+.caldav-cal-trigger[aria-expanded="true"] .caldav-input-suffix { transform: rotate(180deg); }
+.caldav-cal-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.caldav-cal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--cal-color, #64748b);
+  flex: 0 0 auto;
+}
+.caldav-cal-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--ed-card, #faf9f6);
+  border: 1px solid var(--ed-border, #e0ded8);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+}
+/* hidden 属性必须显式生效：上面的 display:flex 会覆盖 UA 的 [hidden]{display:none} */
+.caldav-cal-pop[hidden] { display: none; }
+.caldav-cal-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ed-text, #3d3b36);
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.caldav-cal-option:hover { background: var(--ed-input, #e8e6e2); }
+.caldav-cal-option.is-active {
+  background: color-mix(in srgb, var(--ed-accent, #6b9e75) 14%, transparent);
+  color: var(--ed-accent, #6b9e75);
+  font-weight: 600;
+}
+
+/* ===== 任务分类（编辑弹窗药丸 + 分类管理弹窗） ===== */
+.caldav-cat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.caldav-cat-head .caldav-field-label { margin-bottom: 0; }
+.caldav-cat-manage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  border: 1px solid var(--ed-border);
+  border-radius: 6px;
+  background: var(--ed-card);
+  color: var(--ed-accent);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.caldav-cat-manage:hover { border-color: color-mix(in srgb, var(--ed-accent) 50%, var(--ed-border)); background: color-mix(in srgb, var(--ed-accent) 8%, var(--ed-card)); }
+.caldav-cat-multi {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ed-text-2);
+  cursor: pointer;
+  user-select: none;
+}
+.caldav-cat-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.caldav-cat-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--cat-color, var(--ed-text-2));
+  border: 2px solid transparent;
+  border-radius: 9px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, filter 0.12s;
+  filter: saturate(0.35) opacity(0.72);
+}
+.caldav-cat-pill:hover { filter: saturate(0.8) opacity(0.9); transform: translateY(-1px); }
+.caldav-cat-pill.is-active {
+  filter: none;
+  border-color: color-mix(in srgb, var(--cat-color, var(--ed-accent)) 45%, var(--ed-card));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--cat-color, var(--ed-accent)) 35%, transparent);
+}
+.caldav-cat-pill--none {
+  background: var(--ed-input);
+  color: var(--ed-text);
+  border-color: var(--ed-border);
+}
+.caldav-cat-pill--none.is-active {
+  border-color: color-mix(in srgb, var(--ed-accent) 55%, var(--ed-border));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ed-accent) 25%, transparent);
+}
+.caldav-cat-emoji { font-size: 13px; line-height: 1; }
+.caldav-cat-check { display: none; }
+.caldav-cat-pill--none.is-active .caldav-cat-check {
+  display: inline-flex;
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ed-accent);
+  color: #fff;
+}
+.caldav-cat-check svg { width: 10px; height: 10px; }
+
+/* 分类管理弹窗 */
+.caldav-catmgr-actions {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0 10px;
+}
+.caldav-catmgr-hint {
+  font-size: 12px;
+  color: var(--ed-text-2);
+  background: var(--ed-input);
+  border-radius: 8px;
+  text-align: center;
+  padding: 7px;
+  margin-bottom: 12px;
+}
+.caldav-catmgr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.caldav-catmgr-empty {
+  text-align: center;
+  color: var(--ed-text-2);
+  font-size: 12.5px;
+  padding: 30px 0;
+}
+.caldav-catmgr-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--ed-card);
+  border: 1px solid var(--ed-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.caldav-catmgr-row.is-editing { border-color: color-mix(in srgb, var(--ed-accent) 50%, var(--ed-border)); }
+.caldav-catmgr-idx {
+  width: 18px;
+  font-size: 12px;
+  color: var(--ed-text-2);
+  text-align: center;
+  flex: 0 0 auto;
+}
+.caldav-catmgr-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex: 0 0 auto;
+}
+.caldav-catmgr-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.caldav-catmgr-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ed-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.caldav-catmgr-name-input { flex: 1; min-width: 90px; }
+.caldav-catmgr-color-input {
+  width: 34px;
+  height: 30px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+.caldav-catmgr-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+.caldav-catmgr-color-input::-webkit-color-swatch { border: 1px solid var(--ed-border); border-radius: 6px; }
+.caldav-catmgr-icon-input { width: 48px; text-align: center; flex: 0 0 auto; }
+.caldav-catmgr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ed-border);
+  border-radius: 7px;
+  background: var(--ed-card);
+  color: var(--ed-text-2);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+  flex: 0 0 auto;
+}
+.caldav-catmgr-btn:hover { color: var(--ed-accent); border-color: color-mix(in srgb, var(--ed-accent) 50%, var(--ed-border)); }
+.caldav-catmgr-btn:disabled { opacity: 0.35; cursor: default; }
+.caldav-catmgr-arrows { display: flex; flex-direction: column; gap: 2px; }
+.caldav-catmgr-arrows .caldav-catmgr-btn { width: 24px; height: 18px; }
+.caldav-catmgr-arrow-up svg { transform: rotate(180deg); }
+.caldav-catmgr-note { font-size: 11px; color: var(--ed-text-2); }
+/* 日历下拉左侧图标直接使用所选日历颜色（--cal-color 随选择切换更新） */
+.caldav-cal-icon { color: var(--cal-color, #64748b); }
+
+.caldav-num { width: 64px; flex: 0 0 64px; }
+
+/* 开关行 */
+.caldav-switch-row,
+.caldav-switch-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: var(--caldav-text);
+}
+.caldav-switch-row--inline,
+.caldav-switch-line--inline {
+  padding: 2px 0 6px;
+}
+.caldav-switch-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 4px 10px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--caldav-border);
+}
+.caldav-switch-line .caldav-switch-label {
+  font-weight: 500;
+}
+.caldav-switch-line--inline {
+  border-bottom: none;
+  padding: 2px 0 6px;
+  margin-bottom: 0;
+}
+.caldav-switch {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+}
+.caldav-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.caldav-switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--caldav-border);
+  transition: background 0.18s;
+}
+.caldav-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: transform 0.18s;
+}
+.caldav-switch input:checked + .caldav-switch-track { background: var(--caldav-accent); }
+.caldav-switch input:checked + .caldav-switch-track::after { transform: translateX(18px); }
+.caldav-switch input:focus-visible + .caldav-switch-track {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--caldav-accent) 22%, transparent);
+}
+
+/* 行式设置按钮 */
+.caldav-row-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 9px;
+  background: var(--caldav-inset);
+  color: var(--caldav-text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.caldav-row-btn:hover { border-color: var(--caldav-accent); background: var(--caldav-bg); }
+.caldav-row-btn.is-open .caldav-row-btn-arrow { transform: rotate(90deg); }
+.caldav-row-btn-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--caldav-text-2);
+  transition: transform 0.18s;
+}
+.caldav-row-btn-arrow svg { width: 14px; height: 14px; }
+
+/* 展开详情 */
+.caldav-row-detail {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--caldav-inset);
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+}
+.caldav-repeat-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.caldav-repeat-fields select.caldav-input { width: auto; }
+
+.caldav-weekdays { display: flex; gap: 6px; }
+.caldav-wd {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--caldav-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--caldav-text-2);
+  background: var(--caldav-bg);
+  transition: all 0.12s;
+}
+.caldav-wd:hover { border-color: var(--caldav-accent); color: var(--caldav-accent); }
+.caldav-wd.is-on {
+  background: var(--caldav-accent);
+  border-color: var(--caldav-accent);
+  color: #fff;
+}
+
+/* 自定义提醒时间 */
+.caldav-alarm-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.caldav-alarm-field { flex: 1; min-width: 160px; }
+.caldav-alarm-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.caldav-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 8px;
+  background: var(--caldav-bg);
+  color: var(--caldav-text-2);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.caldav-add-btn:hover {
+  border-color: var(--caldav-accent);
+  color: var(--caldav-accent);
+  background: color-mix(in srgb, var(--caldav-accent) 8%, var(--caldav-bg));
+}
+.caldav-add-btn svg { width: 13px; height: 13px; }
+
+/* 进度 */
+.caldav-progress-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.caldav-progress-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--caldav-accent);
+  height: 4px;
+  border-radius: 999px;
+}
+.caldav-progress-val {
+  font-size: 12px;
+  color: var(--caldav-text-2);
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 页脚 */
+.caldav-editor-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--caldav-border);
+  background: var(--caldav-bg-2);
+}
+
+/* 思源 Dialog 容器微调：压缩标题栏高度、消除底部空白（!important 压过主题默认样式） */
+.caldav-dialog .b3-dialog__container {
+  padding: 0 !important;
+}
+.caldav-dialog .b3-dialog__header {
+  padding: 6px 15px 5px !important;
+  flex: 0 0 auto;
+}
+.caldav-dialog .b3-dialog__header .b3-dialog__title {
+  font-size: 14px;
+}
+.caldav-dialog .b3-dialog__content {
+  padding: 0 !important;
+  margin: 0 !important;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+}
+.caldav-dialog .b3-dialog__content > .caldav-editor,
+.caldav-dialog .b3-dialog__content > .caldav-settings,
+.caldav-dialog .b3-dialog__content > .caldav-catmgr {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.caldav-flex { flex: 1; }
+
+/* 错误提示：位于页脚按钮行左侧空白处，无内容时不占位 */
+.caldav-editor-error {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--caldav-danger);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.caldav-editor-error:empty {
+  display: none;
+}
+
+/* ===== 编辑器新风格组件 ===== */
+
+/* 分组卡片 */
+.caldav-section--card {
+  background: var(--caldav-bg);
+  border: 1px solid var(--caldav-border);
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  gap: 12px;
+}
+
+.caldav-section--card .caldav-section-title {
+  padding-left: 0;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.caldav-section--card .caldav-section-title::before { display: none; }
+
+.caldav-section--card .caldav-switch-line {
+  border-bottom: none;
+  padding: 2px 0 6px;
+  margin-bottom: 0;
+}
+
+/* 标题区 */
+.caldav-title-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--caldav-text);
+}
+
+.caldav-title-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.caldav-title-input {
+  flex: 1;
+  width: 100%;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 12px 42px 12px 14px;
+  border-radius: 12px;
+  background: var(--caldav-input-bg);
+  border: 1px solid var(--caldav-border);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.caldav-title-input:focus {
+  background: color-mix(in srgb, var(--caldav-accent) 5%, var(--caldav-input-bg));
+  border-color: var(--caldav-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--caldav-accent) 14%, transparent);
+}
+
+.caldav-title-action {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--caldav-accent);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.15s;
+}
+
+.caldav-title-action:hover {
+  background: color-mix(in srgb, var(--caldav-accent) 10%, transparent);
+}
+
+.caldav-title-action svg { width: 17px; height: 17px; }
+
+/* 日期时间行 */
+.caldav-datetime-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.caldav-datetime-label {
+  flex: 0 0 42px;
+  font-size: 12px;
+  color: var(--caldav-text-2);
+  font-weight: 500;
+}
+
+.caldav-datetime-inputs {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.caldav-date-input {
+  flex: 1 1 130px;
+  min-width: 0;
+  padding-left: 34px;
+}
+
+.caldav-time-input {
+  flex: 0 0 118px;
+  min-width: 0;
+  padding-left: 30px;
+  padding-right: 26px;
+}
+
+.caldav-input-clear {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--caldav-text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.caldav-input-clear:hover {
+  background: color-mix(in srgb, var(--caldav-danger) 10%, transparent);
+  color: var(--caldav-danger);
+}
+
+.caldav-input-clear svg { width: 14px; height: 14px; }
+
+.caldav-duration-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.caldav-duration-val {
+  font-size: 13px;
+  color: var(--caldav-accent);
+  font-weight: 500;
+}
+
+/* 页脚按钮 */
+.caldav-foot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 18px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  background: var(--caldav-bg);
+  color: var(--caldav-text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.caldav-foot-btn:hover { filter: brightness(0.98); }
+
+.caldav-foot-btn--ghost {
+  background: var(--caldav-bg);
+  border-color: var(--caldav-border);
+  color: var(--caldav-text-2);
+}
+
+.caldav-foot-btn--ghost:hover {
+  background: var(--caldav-bg-2);
+  color: var(--caldav-text);
+}
+
+.caldav-foot-btn--primary {
+  background: var(--caldav-accent);
+  border-color: var(--caldav-accent);
+  color: #fff;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--caldav-accent) 25%, transparent);
+}
+
+.caldav-foot-btn--primary:hover {
+  background: var(--caldav-accent-2);
+  border-color: var(--caldav-accent-2);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--caldav-accent) 32%, transparent);
+}
+
+.caldav-foot-btn--danger {
+  color: var(--caldav-danger);
+  border-color: color-mix(in srgb, var(--caldav-danger) 35%, var(--caldav-border));
+  background: var(--caldav-bg);
+}
+
+.caldav-foot-btn--danger:hover {
+  background: color-mix(in srgb, var(--caldav-danger) 8%, var(--caldav-bg));
+  border-color: var(--caldav-danger);
+}
+
+.caldav-foot-btn svg { width: 14px; height: 14px; }
+
+/* 缩放手柄（右下角） */
+.caldav-resize {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--caldav-text-2);
+  cursor: nwse-resize;
+  opacity: 0.45;
+  border-radius: 4px;
+  z-index: 5;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.caldav-resize:hover, .caldav-resize.is-active {
+  opacity: 1;
+  color: var(--caldav-accent);
+  background: var(--caldav-bg-2);
+}
+
+/* 日历单元格双击新增浮层 */
+.caldav-add-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 144px;
+  padding: 4px;
+  background: var(--caldav-bg);
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: caldav-pop-in 0.12s ease-out;
+}
+@keyframes caldav-pop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.caldav-add-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--caldav-text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.caldav-add-menu-item svg { width: 15px; height: 15px; }
+.caldav-add-menu-item:hover {
+  background: color-mix(in srgb, var(--caldav-accent) 10%, var(--caldav-bg));
+  color: var(--caldav-accent);
+}
+
+/* 设置 */
+.caldav-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.caldav-set-msg {
+  font-size: 12px;
+  color: var(--caldav-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 120px;
+}
+.caldav-set-msg.is-ok { color: var(--b3-theme-success, #16a34a); }
+.caldav-set-msg.is-err { color: var(--caldav-danger); }
+
+.caldav-set-cals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.caldav-set-cal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  background: var(--caldav-bg);
+  transition: border-color 0.15s, background 0.15s;
+}
+.caldav-set-cal:hover { border-color: color-mix(in srgb, var(--caldav-accent) 45%, var(--caldav-border)); }
+.caldav-set-cal input[type="checkbox"] { accent-color: var(--caldav-accent); width: 15px; height: 15px; }
+.caldav-set-cal input[type="color"] {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.caldav-set-cal input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.caldav-set-cal input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+.caldav-set-cal .caldav-input {
+  flex: 1;
+  background: transparent;
+  border-color: transparent;
+  padding: 6px 8px;
+}
+.caldav-set-cal .caldav-input:hover { background: var(--caldav-input-bg); border-color: var(--caldav-border); }
+.caldav-set-cal .caldav-input:focus { background: var(--caldav-input-bg); }
+
+.caldav-set-cal-tags { display: flex; gap: 5px; }
+.caldav-set-cal-tags i {
+  font-style: normal;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--caldav-inset);
+  color: var(--caldav-text-2);
+}
+
+.caldav-set-hint { font-size: 11px; color: var(--caldav-text-2); }
+
+/* 窄屏（Dock 面板）隐藏侧栏时保底 */
+.caldav-root .cal-month, .caldav-root .cal-wk { min-width: 0; }
+
+@media (max-width: 480px) {
+  .caldav-sidebar { display: none; }
+}
+
+/* ===== Dock 精简导航面板（左侧栏） ===== */
+.caldav-dock {
+  --caldav-accent: var(--b3-theme-primary, #3575f0);
+  --caldav-bg: var(--b3-theme-background, #faf9f6);
+  --caldav-bg-2: var(--b3-theme-background-light, #f6f8fa);
+  --caldav-bg-3: var(--b3-theme-surface, #eef1f5);
+  --caldav-border: var(--b3-border-color, #e4e7ed);
+  --caldav-text: var(--b3-theme-on-background, #1f2329);
+  --caldav-text-2: var(--b3-theme-on-surface, #646a73);
+  --caldav-danger: var(--b3-theme-error, #d23f31);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 8px;
+  box-sizing: border-box;
+  font-size: 13px;
+  color: var(--caldav-text);
+}
+
+.caldav-dock-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px 12px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.caldav-dock-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.caldav-dock-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--caldav-text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .12s ease, color .12s ease;
+}
+
+.caldav-dock-btn:hover { background: var(--caldav-bg-3); }
+
+.caldav-dock-btn.is-active {
+  background: var(--caldav-accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.caldav-dock-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--caldav-border);
+}
+
+.caldav-dock-status {
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--caldav-text-2);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caldav-dock-status:hover { background: var(--caldav-bg-3); color: var(--caldav-text); }
+.caldav-dock-status.has-error { color: var(--caldav-danger); }
+
+.caldav-dock-settings {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--caldav-text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.caldav-dock-settings:hover { background: var(--caldav-bg-3); }
+
+/* ===== 主面板：扁平化顶部工具栏（去掉侧栏，顶部 年/月/周/日） ===== */
+.caldav-app--flat .caldav-main { width: 100%; }
+
+/* 分段控件 年/月/周/日 */
+.caldav-seg {
+  display: inline-flex;
+  border: 1px solid var(--caldav-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--caldav-bg-2);
+}
+.caldav-seg-btn {
+  padding: 5px 14px;
+  border: none;
+  background: transparent;
+  color: var(--caldav-text-2);
+  cursor: pointer;
+  font-size: 12.5px;
+  transition: background .12s ease, color .12s ease;
+}
+.caldav-seg-btn + .caldav-seg-btn { border-left: 1px solid var(--caldav-border); }
+.caldav-seg-btn:hover { color: var(--caldav-text); background: var(--caldav-bg-3); }
+.caldav-seg-btn.is-active { background: var(--caldav-accent); color: #fff; }
+
+/* 任务视图时隐藏导航/分段/标题，仅保留新增 */
+.caldav-app.is-task .caldav-toolbar-left [data-action="prev"],
+.caldav-app.is-task .caldav-toolbar-left [data-action="next"],
+.caldav-app.is-task .caldav-toolbar-left [data-action="today"],
+.caldav-app.is-task .caldav-cursor-title,
+.caldav-app.is-task .caldav-toolbar-center { display: none; }
+
+/* 日历筛选浮层（右上角） */
+.caldav-calfilter-wrap { position: relative; }
+.caldav-calfilter-pop {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 20;
+  width: 248px;
+  background: var(--caldav-bg);
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+  padding: 8px 10px 10px;
+}
+.caldav-calfilter-pop[hidden] { display: none; }
+.caldav-calfilter-foot {
+  border-top: 1px solid var(--caldav-border);
+  margin-top: 6px;
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.caldav-calfilter-foot .caldav-link { font-size: 12px; text-align: left; }
+
+/* ===== Dock：标题 + 一行 5 个按钮 ===== */
+.caldav-dock-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.caldav-dock-menu { position: relative; flex: 1; }
+.caldav-dock-actions > .caldav-dock-act { flex: 1; }
+
+.caldav-dock-act {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 38px;
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  background: var(--caldav-bg-2);
+  color: var(--caldav-text);
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  transition: background .15s ease, color .15s ease, border-color .15s ease,
+    transform .15s ease, box-shadow .15s ease;
+}
+.caldav-dock-act svg { width: 16px; height: 16px; }
+.caldav-dock-act:hover {
+  background: var(--caldav-bg-3);
+  border-color: var(--caldav-accent);
+  color: var(--caldav-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--caldav-accent) 22%, transparent);
+}
+.caldav-dock-act:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+}
+.caldav-dock-act.is-open {
+  background: var(--caldav-accent);
+  border-color: var(--caldav-accent);
+  color: #fff;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--caldav-accent) 30%, transparent);
+}
+.caldav-dock-act.is-open svg { stroke: #fff; }
+
+.caldav-dock-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 132px;
+  background: var(--caldav-bg);
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.caldav-dock-pop[hidden] { display: none; }
+
+/* 分类筛选弹层：fixed 定位，弹出到 Dock 右侧外部，避免被左侧栏裁剪 */
+.caldav-dock-cat-pop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  width: 260px;
+  background: var(--d-card);
+  border: 1px solid var(--d-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .14);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.caldav-dock-cat-pop[hidden] { display: none; }
+.caldav-dock-cat-head {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--d-text);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--d-border);
+}
+.caldav-dock-cat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.caldav-dock-cat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--d-border);
+  border-radius: 8px;
+  background: var(--d-input);
+  color: var(--d-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.caldav-dock-cat-item:hover { background: var(--d-input-hover); border-color: color-mix(in srgb, var(--d-accent) 45%, var(--d-border)); }
+.caldav-dock-cat-item.is-active { border-color: var(--d-accent); background: color-mix(in srgb, var(--d-accent) 10%, var(--d-card)); color: var(--d-accent); }
+.caldav-dock-cat-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--d-accent);
+  margin: 0;
+  cursor: pointer;
+}
+.caldav-dock-cat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1;
+}
+.caldav-dock-cat-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--d-border);
+}
+.caldav-dock-cat-foot .caldav-foot-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.caldav-dock-popitem {
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--caldav-text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.caldav-dock-popitem:hover { background: var(--caldav-bg-3); }
+.caldav-dock-popitem.is-active { color: var(--caldav-accent); font-weight: 600; }
+
+.caldav-dock-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--caldav-border);
+}
+
+/* ===== Dock：最近任务/事件列表 ===== */
+.caldav-dock-list {
+  /* 跟随思源主题变量，深浅色自动适配 */
+  --d-page: var(--b3-theme-background, #fff);
+  --d-card: var(--b3-theme-surface, var(--b3-theme-background, #fff));
+  --d-input: var(--b3-theme-background-light, var(--b3-theme-surface, #f6f8fa));
+  --d-input-hover: color-mix(in srgb, var(--b3-theme-background-light, #f6f8fa) 90%, var(--b3-theme-on-background, #1f2329) 10%);
+  --d-border: var(--b3-border-color, #e4e7ed);
+  --d-text: var(--b3-theme-on-background, #1f2329);
+  --d-text-2: var(--b3-theme-on-surface, #646a73);
+  --d-accent: var(--b3-theme-primary, #3575f0);
+  --d-danger: var(--b3-theme-error, #d23f31);
+
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 4px 0;
+  margin-top: 4px;
+  color: var(--d-text);
+  scrollbar-width: thin;
+}
+.caldav-dock-list::-webkit-scrollbar { width: 8px; }
+.caldav-dock-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--d-text-2) 35%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* 列表头：筛选 + 分类 */
+.caldav-dock-list-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.caldav-dock-filter-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.caldav-dock-select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--d-border);
+  border-radius: 10px;
+  background: var(--d-input);
+  color: var(--d-text);
+  padding: 7px 28px 7px 11px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.caldav-dock-select:hover { background: var(--d-input-hover); border-color: color-mix(in srgb, var(--d-accent) 45%, var(--d-border)); }
+.caldav-dock-select:focus {
+  border-color: var(--d-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--d-accent) 16%, transparent);
+}
+.caldav-dock-select-arrow {
+  position: absolute;
+  right: 9px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--d-text-2);
+  pointer-events: none;
+}
+.caldav-dock-select-arrow svg { width: 13px; height: 13px; }
+
+.caldav-dock-filter-btn {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--d-border);
+  border-radius: 10px;
+  background: var(--d-card);
+  color: var(--d-accent);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.caldav-dock-filter-btn:hover {
+  border-color: var(--d-accent);
+  background: color-mix(in srgb, var(--d-accent) 8%, var(--d-card));
+}
+
+/* 搜索框 */
+.caldav-dock-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.caldav-dock-search-icon {
+  position: absolute;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--d-text-2);
+  pointer-events: none;
+}
+.caldav-dock-search-icon svg { width: 14px; height: 14px; }
+.caldav-dock-search {
+  width: 100%;
+  border: 1px solid var(--d-border);
+  border-radius: 10px;
+  background: var(--d-input);
+  color: var(--d-text);
+  padding: 7px 11px 7px 32px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.caldav-dock-search::placeholder { color: var(--d-text-2); opacity: 0.7; }
+.caldav-dock-search:hover { background: var(--d-input-hover); border-color: color-mix(in srgb, var(--d-accent) 45%, var(--d-border)); }
+.caldav-dock-search:focus {
+  border-color: var(--d-accent);
+  background: var(--d-card);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--d-accent) 16%, transparent);
+}
+
+/* 列表 */
+.caldav-dock-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.caldav-dock-empty {
+  padding: 18px 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--d-text-2);
+}
+
+/* 任务卡片 */
+.caldav-dock-item {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--d-border);
+  border-radius: 12px;
+  background: var(--d-card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+}
+.caldav-dock-item:hover {
+  border-color: color-mix(in srgb, var(--d-accent) 45%, var(--d-border));
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+.caldav-dock-item.is-done .caldav-dock-item-title {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.caldav-dock-check {
+  flex: 0 0 24px;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+.caldav-dock-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--d-accent);
+  cursor: pointer;
+}
+.caldav-dock-kind {
+  display: inline-flex;
+  align-items: center;
+  color: var(--d-accent);
+  margin-top: 1px;
+}
+.caldav-dock-kind svg { width: 15px; height: 15px; }
+
+.caldav-dock-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.caldav-dock-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--d-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.caldav-dock-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--d-text-2);
+}
+.caldav-dock-item-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.caldav-dock-item-date svg { width: 13px; height: 13px; }
+
+.caldav-dock-item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.caldav-dock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.caldav-dock-tag svg { width: 11px; height: 11px; }
+.caldav-dock-tag--primary {
+  background: color-mix(in srgb, var(--d-accent) 14%, transparent);
+  color: var(--d-accent);
+  border: 1px solid color-mix(in srgb, var(--d-accent) 28%, transparent);
+}
+.caldav-dock-tag--secondary {
+  background: color-mix(in srgb, var(--d-accent) 10%, var(--d-card));
+  color: var(--d-accent);
+  border: 1px solid color-mix(in srgb, var(--d-accent) 20%, transparent);
+}
+.caldav-dock-tag--ghost {
+  background: var(--d-input);
+  color: var(--d-text-2);
+  border: 1px solid var(--d-border);
+}
+
+/* ===== 年视图 ===== */
+.cal-year {
+  padding: 14px 16px 40px;
+  height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+}
+.cal-year-head { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--caldav-text); }
+.cal-year-months {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.cal-year-month {
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  padding: 8px 8px 10px;
+  background: var(--caldav-bg);
+}
+.cal-year-month-head {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 2px 0 8px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.cal-year-month-head:hover { background: var(--caldav-bg-3); color: var(--caldav-accent); }
+.cal-year-weeks {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 2px;
+}
+.cal-year-weeks span { font-size: 10px; color: var(--caldav-text-2); text-align: center; }
+.cal-year-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 22px;
+  gap: 1px;
+}
+.cal-year-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--caldav-text);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.cal-year-cell.is-out { color: var(--caldav-text-2); opacity: .4; }
+.cal-year-cell:hover { background: var(--caldav-bg-3); }
+.cal-year-cell.is-today { background: color-mix(in srgb, var(--caldav-accent) 14%, transparent); font-weight: 700; color: var(--caldav-accent); }
+.cal-year-dot {
+  position: absolute;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+.cal-year-count {
+  position: absolute;
+  top: 0;
+  right: 1px;
+  font-size: 8px;
+  color: var(--caldav-text-2);
+}

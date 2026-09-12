@@ -1,0 +1,18 @@
+{
+  "addTask": {
+    "other": "新建待办",
+    "zh_CN": "新建待办"
+  },
+  "syncNow": {
+    "other": "立即同步 CalDAV",
+    "zh_CN": "立即同步 CalDAV"
+  },
+  "openPanel": {
+    "other": "打开日历与任务",
+    "zh_CN": "打开日历与任务"
+  },
+  "insertToday": {
+    "other": "把今日日程与待办插入日记",
+    "zh_CN": "把今日日程与待办插入日记"
+  }
+}
