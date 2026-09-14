@@ -102,4 +102,7 @@ npm run test:e2e       # 真实 CalDAV 端到端（自动拉起本地 Radicale�
 ## 许可
 
 AGPL-3.0 license
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6748ca6 (release: v0.1.1 密码加密保存)

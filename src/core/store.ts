@@ -3,6 +3,7 @@
  */
 import type { CalItem, CalSettings, PersistData } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
+import { decryptSecret, encryptSecret, isEncrypted } from "./secret";
 
 export interface StoreEnv {
   loadData: () => Promise<any>;
@@ -14,6 +15,8 @@ export class CalStore {
   private items = new Map<string, CalItem>();
   lastSync?: string;
   lastError?: string;
+  /** 密码解密失败（本地密钥丢失/损坏），需要用户重新输入密码 */
+  secretBroken = false;
   private listeners = new Set<() => void>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -26,6 +29,24 @@ export class CalStore {
       this.items = new Map((data.items || []).map((it) => [keyOf(it), it]));
       this.lastSync = data.sync?.lastSync;
       this.lastError = data.sync?.lastError;
+    }
+    await this.unlockPassword();
+  }
+
+  /** 把持久化的密码还原为内存明文；旧明文会在下次保存时自动改写为密文 */
+  private async unlockPassword(): Promise<void> {
+    const raw = this.settings.password || "";
+    if (!raw) return;
+    if (!isEncrypted(raw)) {
+      // 旧版明文：兼容使用，并立即回写一份密文
+      void this.persist();
+      return;
+    }
+    const plain = await decryptSecret(raw);
+    this.settings.password = plain;
+    this.secretBroken = !plain;
+    if (this.secretBroken) {
+      console.warn("[caldav] 密码解密失败，请在设置中重新输入密码");
     }
   }
 
@@ -40,7 +61,7 @@ export class CalStore {
       this.saveTimer = null;
     }
     await this.env.saveData({
-      settings: this.settings,
+      settings: { ...this.settings, password: await encryptSecret(this.settings.password || "") },
       items: Array.from(this.items.values()),
       sync: { lastSync: this.lastSync, lastError: this.lastError }
     });

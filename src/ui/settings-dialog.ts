@@ -23,6 +23,10 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
     const $ = (sel: string) => el.querySelector(sel) as HTMLInputElement;
     const msgEl = el.querySelector("[data-msg]") as HTMLElement;
     renderCalChecks(el, s.calendars);
+    if (ctx.store.secretBroken) {
+      msgEl.textContent = "本地密钥已丢失，原密码无法解密，请重新输入密码后保存";
+      msgEl.classList.add("is-err");
+    }
 
     // 通道切换提示
     $("select[data-s='channel']").addEventListener("change", () => {
