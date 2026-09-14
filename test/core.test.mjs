@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const outDir = path.join(root, ".test-core");
 
 execSync(
-  `npx tsc src/core/types.ts src/core/date.ts src/core/ics.ts src/core/http.ts src/core/caldav.ts src/core/store.ts src/core/sync.ts ` +
+  `npx tsc src/core/types.ts src/core/date.ts src/core/ics.ts src/core/http.ts src/core/caldav.ts src/core/store.ts src/core/sync.ts src/core/secret.ts ` +
   `--outDir .test-core --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --strict false`,
   { cwd: root, stdio: "inherit" }
 );
@@ -158,6 +158,66 @@ t("mergeServerItems 更新远端数据", async () => {
   st.put({ ...base, etag: "v1" });
   st.mergeServerItems([{ ...base, etag: "v2", summary: "服务端新标题" }]);
   assert.strictEqual(st.getAll()[0].summary, "服务端新标题");
+});
+
+console.log("[core] Secret（密码密文存储）");
+const secret = require(path.join(outDir, "secret.js"));
+async function ta(name, fn) {
+  try {
+    await fn();
+    passed++;
+    console.log("  ✓", name);
+  } catch (e) {
+    console.error("  ✗", name, "\n    ", e?.message || e);
+    process.exitCode = 1;
+  }
+}
+await ta("加解密往返一致", async () => {
+  const cipher = await secret.encryptSecret("p@ss w0rd-中文");
+  assert.ok(secret.isEncrypted(cipher), "应为密文格式: " + cipher);
+  assert.ok(!cipher.includes("p@ss"), "密文不应包含明文片段");
+  assert.strictEqual(await secret.decryptSecret(cipher), "p@ss w0rd-中文");
+});
+await ta("空值与非密文原样处理", async () => {
+  assert.strictEqual(await secret.encryptSecret(""), "");
+  assert.strictEqual(await secret.decryptSecret(""), "");
+  assert.strictEqual(await secret.decryptSecret("legacy-plain-pwd"), "legacy-plain-pwd");
+});
+await ta("每次加密结果不同（随机 iv）", async () => {
+  const a = await secret.encryptSecret("same");
+  const b = await secret.encryptSecret("same");
+  assert.notStrictEqual(a, b);
+  assert.strictEqual(await secret.decryptSecret(a), await secret.decryptSecret(b));
+});
+await ta("Store 保存密文、读回明文", async () => {
+  const saved = {};
+  const st = new storeMod.CalStore({
+    loadData: async () => saved.data,
+    saveData: async (d) => { saved.data = d; }
+  });
+  await st.load();
+  st.settings.password = "secret-123";
+  await st.persist();
+  assert.ok(secret.isEncrypted(saved.data.settings.password), "落盘应为密文");
+  assert.ok(!JSON.stringify(saved.data).includes("secret-123"), "落盘数据不应包含明文");
+  const st2 = new storeMod.CalStore({
+    loadData: async () => saved.data,
+    saveData: async () => {}
+  });
+  await st2.load();
+  assert.strictEqual(st2.settings.password, "secret-123");
+  assert.strictEqual(st2.secretBroken, false);
+});
+await ta("旧明文密码自动迁移为密文", async () => {
+  const saved = { data: { settings: { serverUrl: "http://x/", username: "u", password: "old-plain" }, items: [] } };
+  const st = new storeMod.CalStore({
+    loadData: async () => saved.data,
+    saveData: async (d) => { saved.data = d; }
+  });
+  await st.load();
+  assert.strictEqual(st.settings.password, "old-plain");
+  await st.persist();
+  assert.ok(secret.isEncrypted(saved.data.settings.password), "迁移后应为密文");
 });
 
 console.log(`\n[core] ${passed} 项通过`);
