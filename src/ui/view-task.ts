@@ -74,12 +74,14 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
   for (const it of ctx.store.getAll()) {
     if (it.kind !== "todo" || it.deleted) continue;
     if (!enabled.has(it.calendarUrl)) continue;
-    if (!it.end) {
+    // 到期口径与 Dock 列表一致：优先截止时间，无截止时用开始时间
+    const dueSrc = it.end || it.start;
+    if (!dueSrc) {
       todos.push({ it, due: "" });
       continue;
     }
     const occs = occurrencesInRangeForTodo(it, endMs);
-    todos.push({ it, due: occs.length ? occs[0].slice(0, 10) : it.end.slice(0, 10) });
+    todos.push({ it, due: occs.length && occs[0] ? occs[0].slice(0, 10) : dueSrc.slice(0, 10) });
   }
 
   const countOf = (f: TaskFilter) => todos.filter((t) => f.match(t.it, t.due)).length;

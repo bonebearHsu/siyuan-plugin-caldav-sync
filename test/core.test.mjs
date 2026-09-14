@@ -160,6 +160,59 @@ t("mergeServerItems 更新远端数据", async () => {
   assert.strictEqual(st.getAll()[0].summary, "服务端新标题");
 });
 
+console.log("[core] 待办开始/截止时间");
+const todoIcs = [
+  "BEGIN:VCALENDAR",
+  "VERSION:2.0",
+  "BEGIN:VTODO",
+  "UID:t1@test",
+  "SUMMARY:带开始和截止",
+  "DTSTART:20260914T090000",
+  "DUE:20260915T180000",
+  "END:VTODO",
+  "BEGIN:VTODO",
+  "UID:t2@test",
+  "SUMMARY:只有截止（旧数据）",
+  "DUE:20260916T120000",
+  "END:VTODO",
+  "BEGIN:VTODO",
+  "UID:t3@test",
+  "SUMMARY:无任何日期",
+  "STATUS:NEEDS-ACTION",
+  "END:VTODO",
+  "END:VCALENDAR"
+].join("\r\n");
+const todoItems = ics.itemsFromICS(todoIcs, "http://x/cal/", "http://x/cal/t.ics", "e1");
+t("DTSTART 作为开始、DUE 作为截止", () => {
+  const a = todoItems.find((x) => x.uid === "t1@test");
+  assert.ok(a.start.includes("T09:00"), "start=" + a.start);
+  assert.ok(a.end.includes("T18:00"), "end=" + a.end);
+});
+t("旧数据只有 DUE 时用 DUE 兜底开始", () => {
+  const b = todoItems.find((x) => x.uid === "t2@test");
+  assert.ok(b.end.includes("T12:00"), "end=" + b.end);
+  assert.strictEqual(b.start, b.end);
+});
+t("无日期待办解析为空", () => {
+  const c = todoItems.find((x) => x.uid === "t3@test");
+  assert.strictEqual(c.start, "");
+  assert.strictEqual(c.end, undefined);
+});
+t("序列化：无开始时间不写 DTSTART", () => {
+  const c = todoItems.find((x) => x.uid === "t3@test");
+  const out = ics.itemToNewICS(c);
+  assert.ok(!/DTSTART/.test(out), out);
+  assert.ok(!/DUE/.test(out), out);
+});
+t("往返后开始/截止不丢失", () => {
+  const a = todoItems.find((x) => x.uid === "t1@test");
+  const out = ics.itemToNewICS(a);
+  const back = ics.itemsFromICS("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" + out + "END:VCALENDAR", "http://x/cal/", "http://x/cal/t.ics");
+  assert.strictEqual(back.length, 1);
+  assert.ok(back[0].start.includes("T09:00"), "回读 start=" + back[0].start);
+  assert.ok(back[0].end.includes("T18:00"), "回读 end=" + back[0].end);
+});
+
 console.log("[core] Secret（密码密文存储）");
 const secret = require(path.join(outDir, "secret.js"));
 async function ta(name, fn) {

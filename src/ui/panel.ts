@@ -439,13 +439,13 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
       case "future":
         return diff >= 0;
       case "overdue":
-        return isTodo && !isDone && !!it.end && diffDays(it.end.slice(0, 10), today) < 0;
+        return isTodo && !isDone && !!date && diff < 0;
       case "past7":
         return diff >= -6 && diff < 0;
       case "undone":
         return isTodo && !isDone;
       case "nodate":
-        return isTodo && !it.end;
+        return isTodo && !date;
       case "doneToday":
         return isDone && !!it.completedAt && it.completedAt.slice(0, 10) === today;
       case "doneYesterday":
@@ -495,6 +495,7 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     // 主时间标签
     let timeLabel = "";
     if (it.kind === "todo" && it.percent === 100) timeLabel = "已完成";
+    else if (!date) timeLabel = "无日期";
     else if (diff === 0) timeLabel = "今天";
     else if (diff === 1) timeLabel = "明天";
     else if (diff > 1) timeLabel = `${diff}天后开始`;
@@ -600,7 +601,7 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
       .map((it) => {
         const key = keyOf(it);
         const date = it.kind === "todo" ? (it.end || it.start) : it.start;
-        const dateStr = fmtDateCn(date);
+        const dateStr = date ? fmtDateCn(date) : "无日期";
         const timeStr = formatDockTimeRange(it);
         const tags = buildDockTags(it);
         const isDoneTodo = it.kind === "todo" && it.percent === 100;

@@ -174,7 +174,10 @@ function parseExdates(comp: IcsComponent): LocalStamp[] {
 function itemFromComponent(comp: IcsComponent, kind: CalKind, calendarUrl: string, href: string, etag?: string): CalItem | undefined {
   const uid = firstProp(comp, "UID")?.value || href;
   const summary = unescapeText(firstProp(comp, "SUMMARY")?.value || "");
-  const startProp = firstProp(comp, kind === "event" ? "DTSTART" : "DUE");
+  const dtstartProp = firstProp(comp, "DTSTART");
+  const dueProp = firstProp(comp, "DUE");
+  // 事件以 DTSTART 为准；待办 DTSTART = 开始、DUE = 截止，旧数据只有 DUE 时用作兜底
+  const startProp = kind === "event" ? dtstartProp : dtstartProp || dueProp;
   if (!startProp && kind === "event") return undefined;
   const item: CalItem = {
     uid,
@@ -208,7 +211,7 @@ function itemFromComponent(comp: IcsComponent, kind: CalKind, calendarUrl: strin
       }
     }
   } else {
-    item.end = startProp ? parseIcsStamp(startProp) : undefined;
+    item.end = dueProp ? parseIcsStamp(dueProp) : undefined;
     const pr = firstProp(comp, "PRIORITY");
     if (pr?.value) item.priority = +pr.value || 0;
     const st = firstProp(comp, "STATUS");
@@ -340,7 +343,7 @@ function rebuildComponent(comp: IcsComponent, item: CalItem): IcsComponent {
   if (item.categories?.length) push("CATEGORIES", item.categories.map(escapeText).join(","));
 
   const dateOnly = item.allDay;
-  push("DTSTART", stampToIcs(item.start, dateOnly), dateOnly ? { VALUE: "DATE" } : {});
+  if (item.start) push("DTSTART", stampToIcs(item.start, dateOnly), dateOnly ? { VALUE: "DATE" } : {});
   if (item.kind === "event") {
     const end = item.end || (dateOnly ? addDaysStamp(item.start, 1) : item.start);
     push("DTEND", stampToIcs(end, dateOnly), dateOnly ? { VALUE: "DATE" } : {});
@@ -421,7 +424,7 @@ export function itemToEditedICS(item: CalItem): string {
 
 /** RRULE 展开给定时间窗内的实例开始时间（不含 EXDATE 过滤） */
 export function expandRepeats(item: CalItem, rangeStartMs: number, rangeEndMs: number): LocalStamp[] {
-  if (!item.rrule) return [item.start];
+  if (!item.rrule || !item.start) return [item.start];
   const r = item.rrule;
   const interval = Math.max(1, r.interval);
   const durMs = item.end ? parseLocalStamp(item.end).getTime() - parseLocalStamp(item.start).getTime() : 0;

@@ -48,7 +48,7 @@ export function openEditor(ctx: PanelCtx, preset: EditorPreset): void {
         percent: 0,
         createdAt: todayStamp() + "T" + new Date().toTimeString().slice(0, 8)
       };
-  if (kind === "todo" && isNew) it.end = it.start; // 待办默认无截止
+  if (kind === "todo" && isNew) it.end = undefined; // 待办默认无截止，由用户按需填写
 
   const isTodo = it.kind === "todo";
 
@@ -598,21 +598,25 @@ function collect(ctx: PanelCtx, el: HTMLElement, it: CalItem): CalItem {
   const startTime = v("startTime");
   const endDate = v("endDate");
   const endTime = v("endTime");
-  if (!startDate) throw new Error("请填写开始日期");
-  if (it.allDay) {
+  const stampOf = (d: string, t: string) => (!d ? "" : it.allDay ? d : `${d}T${t || "00:00"}:00`);
+  if (it.kind === "todo") {
+    // 待办的开始/截止时间均可留空
+    it.start = stampOf(startDate, startTime);
+    it.end = stampOf(endDate, endTime);
+    if (it.start && it.end && parseLocalStamp(it.end).getTime() < parseLocalStamp(it.start).getTime()) {
+      throw new Error("结束时间不能早于开始时间");
+    }
+  } else if (it.allDay) {
+    if (!startDate) throw new Error("请填写开始日期");
     it.start = startDate;
-    if (it.kind === "event") it.end = endDate || addDays(startDate, 1);
-    else it.end = endDate || "";
+    it.end = endDate || addDays(startDate, 1);
   } else {
+    if (!startDate) throw new Error("请填写开始日期");
     if (!startTime) throw new Error("请填写开始时间");
     it.start = `${startDate}T${startTime}:00`;
-    if (it.kind === "event") {
-      if (!endDate || !endTime) throw new Error("请填写结束日期和时间");
-      it.end = `${endDate}T${endTime}:00`;
-      if (parseLocalStamp(it.end).getTime() <= parseLocalStamp(it.start).getTime()) throw new Error("结束时间需晚于开始时间");
-    } else {
-      it.end = endDate && endTime ? `${endDate}T${endTime}:00` : "";
-    }
+    if (!endDate || !endTime) throw new Error("请填写结束日期和时间");
+    it.end = `${endDate}T${endTime}:00`;
+    if (parseLocalStamp(it.end).getTime() <= parseLocalStamp(it.start).getTime()) throw new Error("结束时间需晚于开始时间");
   }
   // 重复
   if (f("repeatOn").checked) {
