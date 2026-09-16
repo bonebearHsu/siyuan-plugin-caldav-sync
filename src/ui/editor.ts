@@ -4,6 +4,7 @@
 import { Dialog } from "siyuan";
 import type { CalItem, CalKind, CategoryDef, Recurrence } from "../core/types";
 import { DEFAULT_CATEGORIES } from "../core/types";
+import { keyOf } from "../core/store";
 import { addDays, isDateOnly, parseLocalStamp, todayStamp } from "../core/date";
 import type { PanelCtx } from "./panel";
 import { escape } from "./view-common";
@@ -371,7 +372,7 @@ function editorHtml(
 
 <div class="caldav-editor-foot">
   <div class="caldav-editor-error" data-error></div>
-  ${!isNew && it.raw ? `<button type="button" class="caldav-foot-btn caldav-foot-btn--danger" data-action="delete">${icons.trash} 删除</button>` : ""}
+  ${!isNew ? `<button type="button" class="caldav-foot-btn caldav-foot-btn--danger" data-action="delete">${icons.trash} 删除</button>` : ""}
   <span class="caldav-flex"></span>
   <button type="button" class="caldav-foot-btn caldav-foot-btn--ghost" data-action="cancel">${icons.close} 取消</button>
   <button type="button" class="caldav-foot-btn caldav-foot-btn--primary" data-action="save">${icons.check} 保存</button>
@@ -550,9 +551,50 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
   });
 
   el.querySelector('[data-action="cancel"]')?.addEventListener("click", () => dialog.destroy());
-  el.querySelector('[data-action="delete"]')?.addEventListener("click", () => {
-    void ctx.sync.removeItem(it).then(() => dialog.destroy());
-  });
+
+  // 删除：改为弹窗内二次确认（思源原生 confirm 在本插件 iframe 里点击无响应，
+  // 且失败时无法反馈，这里不依赖它，同时保留失败提示）
+  const delBtn = el.querySelector<HTMLButtonElement>('[data-action="delete"]');
+  if (delBtn) {
+    const idleHtml = delBtn.innerHTML;
+    let armed = false;
+    let armTimer: ReturnType<typeof setTimeout> | null = null;
+    const disarm = () => {
+      armed = false;
+      if (armTimer) clearTimeout(armTimer);
+      armTimer = null;
+      delBtn.innerHTML = idleHtml;
+      delBtn.classList.remove("is-armed");
+    };
+    delBtn.addEventListener("click", async () => {
+      if (!armed) {
+        armed = true;
+        delBtn.innerHTML = `${icons.trash} 再点一次确认删除`;
+        delBtn.classList.add("is-armed");
+        armTimer = setTimeout(disarm, 4000);
+        return;
+      }
+      disarm();
+      delBtn.disabled = true;
+      delBtn.innerHTML = "删除中…";
+      const key = keyOf(it);
+      try {
+        await ctx.sync.removeItem(it);
+        if (ctx.store.get(key)) {
+          // 仍留在本地 = 服务端删除未成功，会留待下次同步重试
+          errEl.textContent = "服务器删除未成功，已记录，将在下次同步重试";
+          delBtn.disabled = false;
+          delBtn.innerHTML = idleHtml;
+          return;
+        }
+        dialog.destroy();
+      } catch (e: any) {
+        errEl.textContent = "删除失败：" + (e?.message || e);
+        delBtn.disabled = false;
+        delBtn.innerHTML = idleHtml;
+      }
+    });
+  }
   el.querySelector('[data-action="save"]')?.addEventListener("click", () => {
     try {
       const saved = collect(ctx, el, it);

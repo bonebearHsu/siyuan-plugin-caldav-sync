@@ -1451,11 +1451,15 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   padding: 10px 14px 12px;
   border-top: 1px solid var(--caldav-border);
   background: var(--caldav-bg-2);
+  /* 页脚是对话框最底部：自带与容器一致的圆角，避免直角背景盖住左下/右下圆角 */
+  border-radius: 0 0 var(--b3-border-radius-b, 8px) var(--b3-border-radius-b, 8px);
 }
 
 /* 思源 Dialog 容器微调：压缩标题栏高度、消除底部空白（!important 压过主题默认样式） */
 .caldav-dialog .b3-dialog__container {
   padding: 0 !important;
+  /* 注意：这里不能加 overflow: hidden —— 编辑弹窗里的日历下拉弹层是 absolute 定位，
+     容器裁剪会把它切掉；底部圆角改由页脚自带（见 .caldav-editor-foot） */
 }
 .caldav-dialog .b3-dialog__header {
   padding: 6px 15px 5px !important;
@@ -1662,10 +1666,16 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.15s;
+  /* 只过渡颜色属性：transition: all 会把 filter 等合成属性也纳入过渡，
+     悬停时触发祖先重绘，导致对话框圆角抗锯齿短暂丢失（左下/右下角闪方角） */
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
-.caldav-foot-btn:hover { filter: brightness(0.98); }
+/* 不用 filter: brightness()：filter 会让元素生成独立合成层，同样会引发上述圆角抖动 */
+.caldav-foot-btn:hover {
+  background: var(--caldav-bg-2);
+  border-color: var(--caldav-border);
+}
 
 .caldav-foot-btn--ghost {
   background: var(--caldav-bg);
@@ -1685,10 +1695,20 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   box-shadow: 0 2px 6px color-mix(in srgb, var(--caldav-accent) 25%, transparent);
 }
 
+/* 悬停：主按钮必须「加深」而不是改用 --b3-theme-primary-light（那是浅色调用于
+   选中底色，配 #fff 文字会变成白字浅底、几乎不可读）。这里用 accent 与黑色混合
+   压暗，同时保持白字对比度 ≥ 4.5:1。 */
 .caldav-foot-btn--primary:hover {
-  background: var(--caldav-accent-2);
-  border-color: var(--caldav-accent-2);
+  background: color-mix(in srgb, var(--caldav-accent) 86%, #000);
+  border-color: color-mix(in srgb, var(--caldav-accent) 86%, #000);
+  color: #fff;
   box-shadow: 0 3px 10px color-mix(in srgb, var(--caldav-accent) 32%, transparent);
+}
+
+/* 键盘可达性：焦点态与悬停态一致 */
+.caldav-foot-btn--primary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--caldav-accent) 55%, transparent);
+  outline-offset: 2px;
 }
 
 .caldav-foot-btn--danger {
@@ -1700,6 +1720,17 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 .caldav-foot-btn--danger:hover {
   background: color-mix(in srgb, var(--caldav-danger) 8%, var(--caldav-bg));
   border-color: var(--caldav-danger);
+}
+
+/* 删除二次确认：按钮实心高亮，提示「再点一次」 */
+.caldav-foot-btn--danger.is-armed {
+  background: var(--caldav-danger);
+  border-color: var(--caldav-danger);
+  color: #fff;
+}
+.caldav-foot-btn--danger.is-armed:hover {
+  background: color-mix(in srgb, var(--caldav-danger) 88%, #000);
+  color: #fff;
 }
 
 .caldav-foot-btn svg { width: 14px; height: 14px; }
@@ -1928,6 +1959,16 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 }
 
 .caldav-dock-status:hover { background: var(--caldav-bg-3); color: var(--caldav-text); }
+
+/* 同步错误正文：直接摊在页脚，不再只藏在悬停提示里 */
+.caldav-dock-error {
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--caldav-danger, var(--b3-theme-error, #d23f31));
+  overflow-wrap: anywhere;
+  cursor: default;
+}
 .caldav-dock-status.has-error { color: var(--caldav-danger); }
 
 .caldav-dock-settings {
@@ -2298,6 +2339,26 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   color: var(--d-text-2);
 }
 
+/* 「另有 N 条无日期待办」提示：避免清空日期后看起来像记录丢失 */
+.caldav-dock-hint {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1px dashed var(--d-border, var(--b3-border-color, #e4e7ed));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--d-text-2, var(--b3-theme-on-background, #1f2329));
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.caldav-dock-hint:hover {
+  border-style: solid;
+  color: var(--b3-theme-primary, #3575f0);
+  border-color: var(--b3-theme-primary, #3575f0);
+}
+
 /* 任务卡片 */
 .caldav-dock-item {
   display: flex;
@@ -2472,3 +2533,62 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   font-size: 8px;
   color: var(--caldav-text-2);
 }
+
+/* ===== 右键菜单（日历/任务视图上的条目） ===== */
+.caldav-ctxmenu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 132px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--caldav-bg, #fff);
+  border: 1px solid var(--caldav-border, #e4e7ed);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  font-size: 13px;
+}
+.caldav-ctxmenu[hidden] { display: none; }
+
+.caldav-ctxmenu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--caldav-text, #1f2329);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.caldav-ctxmenu-item svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.caldav-ctxmenu-item:hover { background: var(--caldav-bg-3, #eef1f5); }
+.caldav-ctxmenu-item[disabled] { opacity: 0.6; cursor: default; }
+
+/* 删除项：常驻危险色；进入确认态变实心（与编辑弹窗内删除一致） */
+.caldav-ctxmenu-item[data-ctx="delete"] { color: var(--caldav-danger, #d23f31); }
+.caldav-ctxmenu-item[data-ctx="delete"]:hover {
+  background: color-mix(in srgb, var(--caldav-danger, #d23f31) 10%, transparent);
+}
+.caldav-ctxmenu-item[data-ctx="delete"].is-armed {
+  background: var(--caldav-danger, #d23f31);
+  color: #fff;
+}
+.caldav-ctxmenu-item[data-ctx="delete"].is-armed:hover {
+  background: color-mix(in srgb, var(--caldav-danger, #d23f31) 88%, #000);
+  color: #fff;
+}
+
+.caldav-ctxmenu-err {
+  max-width: 220px;
+  padding: 5px 9px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--caldav-danger, #d23f31);
+}
+.caldav-ctxmenu-err[hidden] { display: none; }

@@ -10,7 +10,7 @@ import type { SyncEngine } from "../core/sync";
 import type { CalItem, CalKind, SortMode } from "../core/types";
 import { DEFAULT_CATEGORIES } from "../core/types";
 import { occurrencesInRange } from "../core/ics";
-import { parseLocalStamp, todayStamp, startOfWeek, addDays, isDateOnly, fmtTime, fmtDateCn, diffDays } from "../core/date";
+import { parseLocalStamp, stampOfMs, todayStamp, startOfWeek, addDays, isDateOnly, fmtTime, fmtDateCn, diffDays } from "../core/date";
 import { icons } from "./icons";
 import { openEditor } from "./editor";
 import { openSettingsDialog } from "./settings-dialog";
@@ -18,6 +18,7 @@ import { renderMonthView } from "./view-month";
 import { renderWeekView } from "./view-week";
 import { renderTaskView } from "./view-task";
 import { renderYearView } from "./view-year";
+import { todoDueOccurrences } from "./view-common";
 
 export type ViewMode = "year" | "month" | "week" | "day" | "task";
 
@@ -75,6 +76,11 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     </header>
     <div class="caldav-view"></div>
   </main>
+</div>
+<div class="caldav-ctxmenu" hidden>
+  <button class="caldav-ctxmenu-item" data-ctx="edit">${icons.pencil} 编辑</button>
+  <button class="caldav-ctxmenu-item" data-ctx="delete">${icons.trash} 删除</button>
+  <div class="caldav-ctxmenu-err" hidden></div>
 </div>`;
 
   const app = root.querySelector(".caldav-app") as HTMLElement;
@@ -82,8 +88,11 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
   const calfilterPop = root.querySelector(".caldav-calfilter-pop") as HTMLElement;
   const viewEl = root.querySelector(".caldav-view") as HTMLElement;
   const cursorTitleEl = root.querySelector(".caldav-cursor-title") as HTMLElement;
+  const ctxMenu = root.querySelector(".caldav-ctxmenu") as HTMLElement;
   const segBtns = Array.from(root.querySelectorAll(".caldav-seg-btn")) as HTMLElement[];
   let destroyed = false;
+  /** 右键菜单当前指向的条目 key */
+  let ctxMenuKey: string | null = null;
 
   function renderCalList(): void {
     const cals = ctx.store.settings.calendars;
@@ -122,14 +131,15 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     cursorTitleEl.textContent = cursorTitle();
   }
 
-  /** 当前启用日历下、时间窗内的展开实例 */
+  /** 当前启用日历下、时间窗内的展开实例（待办按到期日，见 view-common.todoDueOccurrences） */
   function visibleOccurrences(startMs: number, endMs: number): Map<CalItem, string[]> {
     const enabled = new Set(ctx.store.settings.calendars.filter((c) => c.enabled).map((c) => c.url));
     const out = new Map<CalItem, string[]>();
     for (const it of ctx.store.getAll()) {
       if (it.deleted || it.dirty) continue;
       if (!enabled.has(it.calendarUrl)) continue;
-      const occ = occurrencesInRange(it, startMs, endMs);
+      const occ =
+        it.kind === "todo" ? todoDueOccurrences(it, startMs, endMs) : occurrencesInRange(it, startMs, endMs);
       if (occ.length) out.set(it, occ);
     }
     return out;
@@ -147,9 +157,116 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
 
   function renderAll(): void {
     if (destroyed) return;
+    hideCtxMenu();
     renderCalList();
     renderView();
   }
+
+  // ---- 右键菜单（日历/任务视图上的条目） ----
+  const ctxErrEl = ctxMenu.querySelector(".caldav-ctxmenu-err") as HTMLElement;
+  const ctxDelBtn = ctxMenu.querySelector('[data-ctx="delete"]') as HTMLElement;
+  let ctxDisarmTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function resetCtxDelete(): void {
+    if (ctxDisarmTimer) {
+      clearTimeout(ctxDisarmTimer);
+      ctxDisarmTimer = null;
+    }
+    ctxDelBtn.classList.remove("is-armed");
+    ctxDelBtn.innerHTML = `${icons.trash} 删除`;
+  }
+
+  function hideCtxMenu(): void {
+    if (ctxMenu.hidden) return;
+    ctxMenu.hidden = true;
+    ctxMenuKey = null;
+    resetCtxDelete();
+    ctxErrEl.hidden = true;
+    ctxErrEl.textContent = "";
+  }
+
+  /** 在鼠标位置展开菜单，并做视口边界收敛 */
+  function showCtxMenu(key: string, x: number, y: number): void {
+    ctxMenuKey = key;
+    ctxErrEl.hidden = true;
+    ctxErrEl.textContent = "";
+    resetCtxDelete();
+    ctxMenu.hidden = false;
+    // 先显示再量尺寸，否则 offsetWidth 为 0
+    const w = ctxMenu.offsetWidth;
+    const h = ctxMenu.offsetHeight;
+    const pad = 8;
+    const left = Math.max(pad, Math.min(x, window.innerWidth - w - pad));
+    const top = Math.max(pad, Math.min(y, window.innerHeight - h - pad));
+    ctxMenu.style.left = `${left}px`;
+    ctxMenu.style.top = `${top}px`;
+  }
+
+  // 在条目上右键 → 展开菜单（阻止思源原生右键菜单）
+  app.addEventListener("contextmenu", (ev) => {
+    const t = ev.target as HTMLElement;
+    const openEl = t.closest("[data-open]") as HTMLElement | null;
+    if (!openEl || !app.contains(openEl)) {
+      hideCtxMenu();
+      return;
+    }
+    const key = openEl.dataset.open!;
+    if (!ctx.store.get(key)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    showCtxMenu(key, ev.clientX, ev.clientY);
+  });
+
+  ctxMenu.addEventListener("click", (ev) => {
+    const btn = (ev.target as HTMLElement).closest("[data-ctx]") as HTMLElement | null;
+    if (!btn || !ctxMenuKey) return;
+    const key = ctxMenuKey;
+    const item = ctx.store.get(key);
+    if (!item) {
+      hideCtxMenu();
+      return;
+    }
+    ev.stopPropagation();
+
+    if (btn.dataset.ctx === "edit") {
+      hideCtxMenu();
+      openEditor(ctx, { item });
+      return;
+    }
+    if (btn.dataset.ctx !== "delete") return;
+
+    // 二次点击确认：与编辑弹窗内删除保持一致，不用原生 confirm
+    if (!btn.classList.contains("is-armed")) {
+      btn.classList.add("is-armed");
+      btn.innerHTML = `${icons.trash} 再点一次确认删除`;
+      ctxDisarmTimer = setTimeout(resetCtxDelete, 4000);
+      return;
+    }
+    resetCtxDelete();
+    btn.setAttribute("disabled", "");
+    btn.innerHTML = "删除中…";
+    void ctx.sync
+      .removeItem(item)
+      .then(() => {
+        if (ctx.store.get(key)) {
+          // 仍留在本地 = 服务端 DELETE 未成功，会留待下次同步重试
+          ctxErrEl.textContent = "服务器删除未成功，已记录，将在下次同步重试";
+          ctxErrEl.hidden = false;
+          btn.removeAttribute("disabled");
+          btn.innerHTML = `${icons.trash} 删除`;
+          return;
+        }
+        hideCtxMenu();
+        renderCalList();
+        renderView();
+      })
+      .catch((e: any) => {
+        ctxErrEl.textContent = "删除失败：" + (e?.message || e);
+        ctxErrEl.hidden = false;
+        btn.removeAttribute("disabled");
+        btn.innerHTML = `${icons.trash} 删除`;
+      });
+  });
 
   // 视图内导航（年视图跳月/日）
   ctx.navigate = (mode: ViewMode, cursor?: string) => {
@@ -230,14 +347,28 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     }
   });
 
-  // 点击面板其它区域时收起日历筛选浮层
+  // 点击面板其它区域时收起浮层（日历筛选 + 右键菜单）
   const onDocClick = (ev: MouseEvent) => {
     const t = ev.target as HTMLElement;
+    if (!ctxMenu.hidden && !t.closest(".caldav-ctxmenu")) hideCtxMenu();
     if (calfilterPop.hidden) return;
     if (t.closest(".caldav-calfilter-wrap")) return;
     calfilterPop.hidden = true;
   };
   document.addEventListener("click", onDocClick, true);
+
+  // Esc 关闭；滚动/窗口尺寸变化时菜单会与条目错位，直接收起
+  const onKeydown = (ev: KeyboardEvent) => {
+    if (ev.key === "Escape") {
+      hideCtxMenu();
+      calfilterPop.hidden = true;
+    }
+  };
+  const onReflow = () => hideCtxMenu();
+  document.addEventListener("keydown", onKeydown, true);
+  window.addEventListener("resize", onReflow);
+  // 捕获阶段监听滚动（视图容器自身也可滚）
+  document.addEventListener("scroll", onReflow, true);
 
   const unsub = ctx.store.onChange(() => renderAll());
   renderAll();
@@ -246,6 +377,9 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     destroy() {
       destroyed = true;
       document.removeEventListener("click", onDocClick, true);
+      document.removeEventListener("keydown", onKeydown, true);
+      document.removeEventListener("scroll", onReflow, true);
+      window.removeEventListener("resize", onReflow);
       unsub();
       root.innerHTML = "";
     },
@@ -344,9 +478,11 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
 </div>
 <div class="caldav-dock-foot">
   <button class="caldav-dock-status" data-action="sync">未同步</button>
+  <div class="caldav-dock-error" data-dock="error" hidden></div>
 </div>`;
 
   const statusEl = root.querySelector(".caldav-dock-status") as HTMLElement;
+  const errorEl = root.querySelector("[data-dock='error']") as HTMLElement | null;
   const listEl = root.querySelector("[data-dock='items']") as HTMLElement;
   const pops = Array.from(root.querySelectorAll<HTMLElement>(".caldav-dock-pop"));
   let localSort: SortMode = "start";
@@ -393,9 +529,49 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
   function renderStatus(): void {
     if (destroyed) return;
     const s = opts.store.settings;
-    statusEl.textContent = s.serverUrl ? `上次同步 ${opts.store.lastSync || "—"}` : "未配置服务器";
-    statusEl.title = opts.store.lastError ? `错误: ${opts.store.lastError}` : "点击立即同步";
-    statusEl.classList.toggle("has-error", !!opts.store.lastError);
+    const err = opts.store.lastError;
+    const cred = opts.store.credentialsIssue();
+    const time = opts.store.lastSync || "—";
+
+    // 凭据问题优先提示：这类错误原来只写在控制台，用户完全看不到
+    if (cred) {
+      statusEl.textContent = "同步不可用 · 凭据异常";
+      statusEl.title = cred;
+      statusEl.classList.add("has-error");
+      showError(cred);
+      return;
+    }
+    if (!s.serverUrl) {
+      statusEl.textContent = "未配置服务器";
+      statusEl.title = "点击打开设置";
+      statusEl.classList.remove("has-error");
+      showError("");
+      return;
+    }
+    if (err) {
+      statusEl.textContent = `同步失败 · ${time}`;
+      statusEl.title = `错误: ${err}`;
+      statusEl.classList.add("has-error");
+      showError(err);
+    } else {
+      statusEl.textContent = `上次同步 ${time}`;
+      statusEl.title = "点击立即同步";
+      statusEl.classList.remove("has-error");
+      showError("");
+    }
+  }
+
+  /** 页脚错误行：把错误正文摊开显示，而不是只放在悬停提示里 */
+  function showError(text: string): void {
+    if (!errorEl) return;
+    if (!text) {
+      errorEl.hidden = true;
+      errorEl.textContent = "";
+      return;
+    }
+    errorEl.hidden = false;
+    errorEl.textContent = text.length > 90 ? text.slice(0, 90) + "…" : text;
+    errorEl.title = text;
   }
 
   type DockFilter =
@@ -411,8 +587,9 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     return opts.store.settings.calendars.some((c) => c.enabled && c.url === it.calendarUrl);
   }
 
+  /** 条目用于「归属时间段」的日期：待办取到期日（DUE），事件取开始时间 */
   function dateKeyOf(it: CalItem): string {
-    return (it.kind === "todo" ? (it.end || it.start) : it.start).slice(0, 10);
+    return (it.kind === "todo" ? it.end : it.start)?.slice(0, 10) || "";
   }
 
   function matchesDockFilter(it: CalItem, filter: DockFilter): boolean {
@@ -481,7 +658,8 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
   function formatDockTimeRange(it: CalItem): string {
     if (it.allDay) return "全天";
     if (it.kind === "event" && it.end) return `${fmtTime(it.start)} - ${fmtTime(it.end)}`;
-    if (it.kind === "todo" && it.end) return `${fmtTime(it.start)} - ${fmtTime(it.end)}`;
+    // 待办以到期时间为准，不再展示开始时间
+    if (it.kind === "todo" && it.end) return isDateOnly(it.end) ? "" : fmtTime(it.end);
     if (!isDateOnly(it.start)) return fmtTime(it.start);
     return "";
   }
@@ -556,7 +734,8 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     const sv = (it: CalItem): string | number => {
       switch (localSort) {
         case "end":
-          return it.end || it.start;
+          // 待办以到期日为准；无到期日的排最后
+          return it.kind === "todo" ? it.end || "9999-12-31T23:59:59" : it.end || it.start;
         case "priority":
           return it.priority && it.priority > 0 ? it.priority : 9; // 无优先级视为最低
         case "completed":
@@ -569,7 +748,8 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
           return (it.summary || "").toLowerCase();
         case "start":
         default:
-          return dateKeyOf(it) + "T" + it.start.slice(11);
+          // 待办按到期时间排序（与时间归属口径一致）
+          return dateKeyOf(it) + "T" + (it.kind === "todo" ? it.end || "" : it.start).slice(11);
       }
     };
     const av = sv(a);
@@ -579,6 +759,23 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     // 并列回退：开始时间 → 标题
     if (a.start !== b.start) return a.start.localeCompare(b.start);
     return (a.summary || "").localeCompare(b.summary || "", "zh");
+  }
+
+  /**
+   * 当前筛选下被隐藏的无日期未完成待办数量。
+   * 用户在编辑弹窗里清空日期后，这类条目会落在「无日期」里，
+   * 若不提示，看起来就像「记录消失了」（实测用户就是这么反馈的）。
+   */
+  function hiddenNodateCount(): number {
+    if (dockFilter === "nodate" || dockFilter === "undone" || dockFilter.startsWith("done")) return 0;
+    const q = dockSearch.toLowerCase().trim();
+    return opts.store
+      .getAll()
+      .filter((it) => it.kind === "todo" && !it.deleted && !it.dirty && it.percent !== 100)
+      .filter((it) => isEnabledCalendar(it))
+      .filter((it) => !dateKeyOf(it))
+      .filter((it) => matchesDockCategoryFilter(it, dockCategoryFilter))
+      .filter((it) => matchesDockSearch(it, q)).length;
   }
 
   function renderDockList(): void {
@@ -592,15 +789,20 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
       .sort(dockSort)
       .slice(0, 50);
 
+    const nodateHidden = hiddenNodateCount();
+    const nodateHint = nodateHidden
+      ? `<button class="caldav-dock-hint" data-dock-action="show-nodate">另有 ${nodateHidden} 条无日期待办未显示 · 点此查看</button>`
+      : "";
+
     if (!items.length) {
-      listEl.innerHTML = `<div class="caldav-dock-empty">暂无匹配条目</div>`;
+      listEl.innerHTML = `<div class="caldav-dock-empty">暂无匹配条目</div>${nodateHint}`;
       return;
     }
 
     listEl.innerHTML = items
       .map((it) => {
         const key = keyOf(it);
-        const date = it.kind === "todo" ? (it.end || it.start) : it.start;
+        const date = it.kind === "todo" ? it.end : it.start;
         const dateStr = date ? fmtDateCn(date) : "无日期";
         const timeStr = formatDockTimeRange(it);
         const tags = buildDockTags(it);
@@ -624,11 +826,22 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
         </div>
       </div>`;
       })
-      .join("");
+      .join("") + nodateHint;
   }
 
   root.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
+
+    // 「另有 N 条无日期待办」提示：直接切到无日期筛选
+    const nodateBtn = t.closest("[data-dock-action='show-nodate']");
+    if (nodateBtn) {
+      dockFilter = "nodate";
+      const sel = root.querySelector<HTMLSelectElement>("[data-dock='filter']");
+      if (sel) sel.value = "nodate";
+      renderDockList();
+      ev.stopPropagation();
+      return;
+    }
 
     // Dock 列表内部：复选框 / 卡片打开
     const toggleEl = t.closest("[data-toggle]") as HTMLElement | null;

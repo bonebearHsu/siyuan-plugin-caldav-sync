@@ -5,7 +5,7 @@
  * - 删除：本地 deleted 标记 -> 服务端 DELETE
  */
 import type { CalItem } from "./types";
-import type { CalStore } from "./store";
+import { keyOf, type CalStore } from "./store";
 import { syncCollection, fetchCalendarItems, putItem, deleteItem, icsRangeIso, type DavAuth } from "./caldav";
 import { httpRequest } from "./http";
 import { itemToEditedICS, itemToNewICS } from "./ics";
@@ -19,6 +19,18 @@ export interface SyncReport {
   deleted: number;
   errors: string[];
   elapsedMs: number;
+}
+
+/** 把底层网络错误翻成可读提示（"Failed to fetch" 对用户毫无信息量） */
+function explainError(e: any): string {
+  const msg = e?.message || String(e);
+  if (/Failed to fetch|NetworkError|Load failed|ERR_/i.test(msg)) {
+    return "网络请求失败（服务不可达，或直连被跨域拦截，建议把请求通道改为「内核代理」）";
+  }
+  if (/timeout|aborted|abort/i.test(msg)) return "请求超时";
+  if (/401/.test(msg)) return "认证失败（401）：用户名或密码错误";
+  if (/403/.test(msg)) return "无权限（403）";
+  return msg;
 }
 
 export class SyncEngine {
@@ -61,6 +73,21 @@ export class SyncEngine {
     const t0 = Date.now();
     const report: SyncReport = { ok: true, fetched: 0, uploaded: 0, deleted: 0, errors: [], elapsedMs: 0 };
     try {
+      // 凭据缺失时直接给出明确错误，不再发无效请求、也不再显示“同步成功”
+      const credErr = this.credentialError();
+      if (credErr) {
+        report.ok = false;
+        report.errors.push(credErr);
+        this.store.lastError = credErr;
+        return report;
+      }
+      const enabledCals = this.store.settings.calendars.filter((c) => c.enabled);
+      if (!enabledCals.length) {
+        report.ok = false;
+        report.errors.push("没有启用的日历");
+        this.store.lastError = "没有启用的日历";
+        return report;
+      }
       const rangeStart = Date.now() - this.store.settings.pastDays * 86400000;
       const rangeEnd = Date.now() + this.store.settings.futureDays * 86400000;
 
@@ -104,20 +131,11 @@ export class SyncEngine {
           this.store.mergeServerItems(items, deletedKeys);
         } catch (e: any) {
           report.ok = false;
-          report.errors.push(`${cal.displayName}: ${e?.message || e}`);
+          report.errors.push(`${cal.displayName}: ${explainError(e)}`);
         }
       }
 
-      // 3. 清理本地已删除标记
-      for (const it of this.store.deletedItems()) {
-        try {
-          await deleteItem(it, this.channel(), this.auth());
-          report.deleted++;
-        } catch (e: any) {
-          report.ok = false;
-          report.errors.push(`删除 ${it.summary}: ${e?.message}`);
-        }
-      }
+      // 3. 已删除条目已在 pushDirty 中处理（成功后即从本地移除），此处不再重复 DELETE
 
       // 使用本地时区墙上时间（东八区等），避免 toISOString() 输出 UTC 导致显示偏差
       this.store.lastSync = stampOfMs(Date.now()).replace("T", " ");
@@ -126,8 +144,20 @@ export class SyncEngine {
       this.syncing = false;
       report.elapsedMs = Date.now() - t0;
       await this.store.persist();
+      // 通知订阅者（Dock 状态栏等）刷新，否则自动同步失败时界面不会更新
+      this.store.notify();
     }
     return report;
+  }
+
+  /** 凭据不可用时的统一提示（密码为空/解密失败），避免静默 401 */
+  private credentialError(): string | undefined {
+    const s = this.store.settings;
+    if (!s.serverUrl) return "未配置服务器地址";
+    if (!s.username) return "未填写用户名";
+    if (this.store.secretBroken) return "密码解密失败，请在设置中重新输入密码";
+    if (!s.password) return "未填写密码，请在设置中填写";
+    return undefined;
   }
 
   private findKeyByHref(href: string, calUrl: string): string | undefined {
@@ -185,7 +215,7 @@ export class SyncEngine {
               report.uploaded++;
               continue;
             } catch (e2: any) {
-              report.errors.push(`覆盖 ${item.summary}: ${e2?.message}`);
+              report.errors.push(`覆盖 ${item.summary}: ${explainError(e2)}`);
             }
           } else {
             // 服务端优先：丢弃本地改动
@@ -194,7 +224,7 @@ export class SyncEngine {
           }
         } else {
           report.ok = false;
-          report.errors.push(`上传 ${item.summary}: ${e?.message || e}`);
+          report.errors.push(`上传 ${item.summary}: ${explainError(e)}`);
         }
       }
     }
@@ -203,9 +233,11 @@ export class SyncEngine {
       try {
         await deleteItem(item, this.channel(), this.auth());
         report.deleted++;
+        // 删除成功后从本地移除，否则每次同步都会重复发 DELETE
+        this.store.remove(keyOf(item));
       } catch (e: any) {
         report.ok = false;
-        report.errors.push(`删除 ${item.summary}: ${e?.message || e}`);
+        report.errors.push(`删除 ${item.summary}: ${explainError(e)}`);
       }
     }
   }

@@ -1,11 +1,31 @@
 /** 视图渲染公共类型 */
 import type { CalItem, SortMode } from "../core/types";
 import type { PanelCtx } from "./panel";
+import { occurrencesInRange } from "../core/ics";
+import { parseLocalStamp, stampOfMs } from "../core/date";
 
 export interface ViewArgs {
   ctx: PanelCtx;
   viewEl: HTMLElement;
   occurrences: (startMs: number, endMs: number) => Map<CalItem, string[]>;
+}
+
+/**
+ * 待办的时间归属一律取「到期日期」（DUE），不看开始日期（DTSTART）。
+ * - 日历显示、周/月视图落位、Dock 与任务视图的时间段统计都走这里
+ * - 无到期日期时返回空数组，该待办归入「无日期」
+ * - 重复待办：先按开始时间展开实例，再整体平移到到期日
+ */
+export function todoDueOccurrences(it: CalItem, startMs: number, endMs: number): string[] {
+  if (!it.end) return [];
+  if (!it.rrule) {
+    const ms = parseLocalStamp(it.end).getTime();
+    return ms >= startMs && ms <= endMs ? [it.end] : [];
+  }
+  const anchor = it.start || it.end;
+  const occs = occurrencesInRange({ ...it, start: anchor }, startMs, endMs);
+  const delta = it.start ? parseLocalStamp(it.end).getTime() - parseLocalStamp(it.start).getTime() : 0;
+  return occs.filter(Boolean).map((s) => stampOfMs(parseLocalStamp(s).getTime() + delta));
 }
 
 export function keyOfItem(it: CalItem): string {
@@ -45,7 +65,8 @@ export function calColorOf(ctx: PanelCtx, it: CalItem): string {
 function sortValueOf(mode: SortMode, it: CalItem, occ: string): string | number {
   switch (mode) {
     case "end":
-      return it.end || occ;
+      // 待办以到期日为准；无到期日的排到最后
+      return it.kind === "todo" ? it.end || "9999-12-31T23:59:59" : it.end || occ;
     case "priority":
       return it.priority && it.priority > 0 ? it.priority : 9; // 无优先级视为最低（9）
     case "completed":

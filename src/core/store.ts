@@ -46,8 +46,17 @@ export class CalStore {
     this.settings.password = plain;
     this.secretBroken = !plain;
     if (this.secretBroken) {
+      // 写进 lastError，让 Dock 状态栏能直接显示出来（否则只在控制台，用户看不到）
+      this.lastError = "密码解密失败（设备密钥不匹配），请在设置中重新输入密码";
       console.warn("[caldav] 密码解密失败，请在设置中重新输入密码");
     }
+  }
+
+  /** 凭据是否可用（用于同步前检查与界面提示） */
+  credentialsIssue(): string | undefined {
+    if (this.secretBroken) return "密码解密失败，请在设置中重新输入密码";
+    if (this.settings.serverUrl && !this.settings.password) return "未填写密码，请在设置中填写";
+    return undefined;
   }
 
   private persistSoon(): void {

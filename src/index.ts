@@ -6,6 +6,7 @@ import { Plugin, openTab, getFrontend, type Custom, type MobileCustom, type Tab 
 import "@/index.css";
 import { CalStore } from "@/core/store";
 import { SyncEngine } from "@/core/sync";
+import { setSecretSeed } from "@/core/secret";
 import { occurrencesInRange } from "@/core/ics";
 import { todayStamp } from "@/core/date";
 import { renderPanel, renderDockPanel, notifyViewChange, toggleTodoDone, VIEW_CHANGE_EVENT, type PanelCtx, type ViewMode } from "@/ui/panel";
@@ -30,6 +31,10 @@ export default class CalDavPlugin extends Plugin {
   async onload(): Promise<void> {
     const self = this;
     this.addIcons(ICONS);
+
+    // 先拿到设备标识（思源 conf.system.id + 工作空间路径）作为凭据加密密钥来源，
+    // 再加载 store —— 顺序不能反，否则密文解不开会被当成「密码丢失」。
+    await this.ensureSecretSeed();
 
     this.store = new CalStore({
       loadData: () => this.loadData(DOCK_TYPE),
@@ -189,6 +194,29 @@ export default class CalDavPlugin extends Plugin {
   /** 打开 Dock 面板（聚焦已开面板） */
   openDockPanel(): void {
     document.querySelector(`[data-type="${DOCK_TYPE}"]`)?.dispatchEvent(new MouseEvent("click"));
+  }
+
+  /**
+   * 取思源 conf 里的设备/工作空间标识，作为凭据加密的密钥来源。
+   * conf 不参与云同步，且与插件 iframe 端口无关，因此换端口/重启都不会导致密码解不开。
+   */
+  private async ensureSecretSeed(): Promise<void> {
+    // 非浏览器环境（单元测试）没有可用的同源根，直接跳过，走兼容密钥
+    if (typeof location === "undefined" || !location.origin) return;
+    try {
+      const res = await fetch(location.origin + "/api/system/getConf", { method: "POST" });
+      const j: any = await res.json();
+      const conf = j?.data?.conf || j?.data || {};
+      const id = conf?.system?.id || "";
+      const ws = conf?.system?.workspaceDir || "";
+      if (id) {
+        setSecretSeed(`${id}|${ws}`);
+      } else {
+        console.warn("[caldav] 未取到设备标识，凭据将使用兼容密钥");
+      }
+    } catch (e) {
+      console.warn("[caldav] 读取设备标识失败，凭据将使用兼容密钥:", e);
+    }
   }
 
   private createCtx(): PanelCtx {

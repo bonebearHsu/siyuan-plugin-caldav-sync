@@ -212,6 +212,40 @@ t("往返后开始/截止不丢失", () => {
   assert.ok(back[0].start.includes("T09:00"), "回读 start=" + back[0].start);
   assert.ok(back[0].end.includes("T18:00"), "回读 end=" + back[0].end);
 });
+t("编辑既有条目：改动写入 DTSTART/DUE 而非原样输出", () => {
+  const a = todoItems.find((x) => x.uid === "t1@test");
+  const edited = { ...a, raw: ics.itemToNewICS(a), start: "2026-09-20T09:00:00", end: "2026-09-21T10:00:00", summary: "改期后的标题" };
+  const out = ics.itemToEditedICS(edited);
+  const back = ics.itemsFromICS(out, "http://x/cal/", "http://x/cal/t.ics");
+  assert.strictEqual(back.length, 1, "编辑后条目数应保持 1");
+  assert.strictEqual(back[0].summary, "改期后的标题");
+  assert.ok(back[0].start.startsWith("2026-09-20"), "改期未生效: " + back[0].start);
+  assert.ok(back[0].end.startsWith("2026-09-21"), "改期未生效: " + back[0].end);
+});
+t("编辑保留原文的非管理属性（ORGANIZER/VTIMEZONE）", () => {
+  const raw = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "BEGIN:VTIMEZONE",
+    "TZID:Asia/Shanghai",
+    "END:VTIMEZONE",
+    "BEGIN:VTODO",
+    "UID:t9@test",
+    "SUMMARY:原标题",
+    "DTSTART:20260914T090000",
+    "ORGANIZER:mailto:a@b.c",
+    "END:VTODO",
+    "END:VCALENDAR"
+  ].join("\r\n");
+  const it = ics.itemsFromICS(raw, "http://x/cal/", "http://x/cal/t9.ics")[0];
+  const out = ics.itemToEditedICS({ ...it, raw, start: "2026-09-25T08:00:00", summary: "新标题" });
+  assert.ok(out.includes("ORGANIZER:mailto:a@b.c"), "应保留 ORGANIZER\n" + out);
+  assert.ok(out.includes("TZID:Asia/Shanghai"), "应保留 VTIMEZONE\n" + out);
+  assert.ok(out.includes("SUMMARY:新标题"));
+  const back = ics.itemsFromICS(out, "http://x/cal/", "http://x/cal/t9.ics");
+  assert.strictEqual(back.length, 1);
+  assert.ok(back[0].start.startsWith("2026-09-25"), "改期未生效: " + back[0].start);
+});
 
 console.log("[core] Secret（密码密文存储）");
 const secret = require(path.join(outDir, "secret.js"));
@@ -228,6 +262,7 @@ async function ta(name, fn) {
 await ta("加解密往返一致", async () => {
   const cipher = await secret.encryptSecret("p@ss w0rd-中文");
   assert.ok(secret.isEncrypted(cipher), "应为密文格式: " + cipher);
+  assert.ok(cipher.startsWith("enc:v1:"), "未设置设备标识时应走兼容格式: " + cipher.slice(0, 10));
   assert.ok(!cipher.includes("p@ss"), "密文不应包含明文片段");
   assert.strictEqual(await secret.decryptSecret(cipher), "p@ss w0rd-中文");
 });
@@ -271,6 +306,28 @@ await ta("旧明文密码自动迁移为密文", async () => {
   assert.strictEqual(st.settings.password, "old-plain");
   await st.persist();
   assert.ok(secret.isEncrypted(saved.data.settings.password), "迁移后应为密文");
+});
+await ta("设备标识（v2）：加解密往返且不受 iframe 端口影响", async () => {
+  secret.setSecretSeed("sysid-abc|D:/SiYuan");
+  const cipher = await secret.encryptSecret("pwd-中文-123");
+  assert.ok(cipher.startsWith("enc:v2:"), "应使用设备标识密钥: " + cipher.slice(0, 12));
+  assert.strictEqual(await secret.decryptSecret(cipher), "pwd-中文-123");
+});
+await ta("设备标识变更后旧密文解不开、改回后可解", async () => {
+  const cipher = await secret.encryptSecret("secret-x");
+  secret.setSecretSeed("sysid-other|D:/Other");
+  assert.strictEqual(await secret.decryptSecret(cipher), "", "换设备后应解不开");
+  secret.setSecretSeed("sysid-abc|D:/SiYuan");
+  assert.strictEqual(await secret.decryptSecret(cipher), "secret-x");
+});
+await ta("凭据异常可被检出（用于界面提示）", async () => {
+  const st = new storeMod.CalStore({ loadData: async () => undefined, saveData: async () => {} });
+  await st.load();
+  st.settings.serverUrl = "http://x/";
+  st.settings.password = "";
+  assert.ok(st.credentialsIssue(), "空密码应能检出");
+  st.settings.password = "p";
+  assert.strictEqual(st.credentialsIssue(), undefined);
 });
 
 console.log(`\n[core] ${passed} 项通过`);

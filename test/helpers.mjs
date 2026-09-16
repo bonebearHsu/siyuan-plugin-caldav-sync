@@ -58,6 +58,8 @@ export function seedStore(plugin) {
   const today = new Date();
   const p = (n) => (n < 10 ? "0" + n : String(n));
   const todayStamp = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
+  const tmr = new Date(today.getTime() + 86400000);
+  const tomorrowStamp = `${tmr.getFullYear()}-${p(tmr.getMonth() + 1)}-${p(tmr.getDate())}`;
   const mk = (i, over) => ({
     uid: `seed-${i}@test`,
     kind: "event",
@@ -77,6 +79,12 @@ export function seedStore(plugin) {
   store.put(mk(3, { kind: "todo", end: `${todayStamp}T09:00:00`, summary: "逾期任务" }));
   store.put(mk(4, { allDay: true, start: todayStamp, end: todayStamp }));
   store.put(mk(5, { kind: "todo", percent: 100, status: "COMPLETED", end: `${todayStamp}T12:00:00` }));
-  store.put(mk(6, { summary: "无截止任务", kind: "todo", end: undefined }));
+  store.put(mk(6, { summary: "无截止任务", kind: "todo", start: "", end: undefined }));
   store.put(mk(7, { start: `${todayStamp}T14:00:00`, end: `${todayStamp}T15:00:00`, location: "线上会议" }));
+  // 只有开始时间、无到期日：待办一律以到期日归属，故应算「无日期」
+  store.put(mk(8, { summary: "仅开始时间任务", kind: "todo", start: `${todayStamp}T07:00:00`, end: undefined }));
+  // 开始日与到期日跨天：日历/统计一律按到期日（明天）归属
+  store.put(
+    mk(9, { summary: "跨日待办", kind: "todo", start: `${todayStamp}T09:00:00`, end: `${tomorrowStamp}T18:00:00` })
+  );
 }

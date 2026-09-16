@@ -314,7 +314,7 @@ function foldLine(line: string): string {
 
 /** 本插件管理的属性名（编辑时重建，其余属性原样保留） */
 const MANAGED = new Set([
-  "SUMMARY", "DESCRIPTION", "LOCATION", "CATEGORIES",
+  "UID", "SUMMARY", "DESCRIPTION", "LOCATION", "CATEGORIES",
   "DTSTART", "DTEND", "DUE", "DURATION", "RRULE", "EXDATE", "RECURRENCE-ID",
   "STATUS", "PRIORITY", "PERCENT-COMPLETE", "COMPLETED",
   "DTSTAMP", "LAST-MODIFIED", "SEQUENCE", "TZID"
@@ -410,13 +410,23 @@ export function itemToEditedICS(item: CalItem): string {
   const target = item.kind === "event" ? "VEVENT" : "VTODO";
   const comps = findComponents(root, target);
   const match = comps.find((c) => firstProp(c, "UID")?.value === item.uid) || comps[0];
+  // 原文里找不到目标组件时退回新建，避免改动被静默丢弃
+  if (!match) return itemToNewICS(item);
   const lines: string[] = [];
+  // 注意：parseICS 的根是 ROOT，VCALENDAR / VEVENT / VTODO 都在其下多层，
+  // 必须递归下钻才能命中目标组件（只遍历 root.children 会永远打不到）。
   const emit = (c: IcsComponent) => {
     if (c === match) {
       lines.push(...compToLines(rebuildComponent(c, item)));
-    } else {
-      lines.push(...compToLines(c));
+      return;
     }
+    lines.push(`BEGIN:${c.type}`);
+    for (const p of c.props) {
+      const params = Object.entries(p.params).map(([k, v]) => `;${k}=${v}`).join("");
+      lines.push(foldLine(`${p.name}${params}:${p.value}`));
+    }
+    for (const child of c.children) emit(child);
+    lines.push(`END:${c.type}`);
   };
   for (const c of root.children) emit(c);
   return lines.join("\r\n") + "\r\n";

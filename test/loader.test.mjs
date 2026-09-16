@@ -4,6 +4,8 @@
  *       主日历页签 = 顶部 年/月/周/日 分段切换 + 视图容器。
  */
 import assert from "node:assert";
+import fs from "node:fs";
+import path from "node:path";
 import { setupBrowserDom, loadBuiltPlugin, seedStore } from "./helpers.mjs";
 
 setupBrowserDom();
@@ -58,6 +60,22 @@ assert.ok(dockEl.querySelector(".caldav-dock-items"), "Dock 应有任务列表�
 assert.ok(dockEl.querySelectorAll(".caldav-dock-item").length >= 1, "默认「未来七天」筛选下 Dock 应渲染任务卡片");
 assert.ok(dockEl.querySelector(".caldav-dock-tag"), "任务卡片应包含标签");
 
+// 无日期待办不能被静默隐藏（用户清空日期后曾反馈「记录不见了」）
+const nodateHint = dockEl.querySelector(".caldav-dock-hint");
+assert.ok(nodateHint, "默认筛选下应提示存在未显示的无日期待办");
+assert.ok(/无日期待办/.test(nodateHint.textContent || ""), "提示文案应说明是无日期待办");
+click(nodateHint);
+assert.strictEqual(dockEl.querySelector("[data-dock='filter']").value, "nodate", "点击提示应切到「无日期」筛选");
+assert.ok(
+  [...dockEl.querySelectorAll(".caldav-dock-item")].some((el) => el.textContent.includes("无截止任务")),
+  "无日期筛选下应能看到无日期待办"
+);
+// 还原默认筛选，避免影响后续断言
+const dockFilterSel = dockEl.querySelector("[data-dock='filter']");
+dockFilterSel.value = "next7";
+dockFilterSel.dispatchEvent(new Event("change", { bubbles: true }));
+assert.ok(dockEl.querySelector(".caldav-dock-hint"), "切回默认筛选后应再次提示无日期待办");
+
 // Dock 分类筛选弹窗
 const catBtn = dockEl.querySelector("[data-dock='category']");
 assert.ok(catBtn, "Dock 应有分类筛选按钮");
@@ -93,6 +111,13 @@ assert.strictEqual(tabEl.querySelectorAll(".caldav-seg-btn").length, 4, "应有 
 assert.strictEqual(tabEl.querySelectorAll(".caldav-cal-item").length, 2, "页签日历筛选应包含 2 个日历");
 // 今日单元格应唯一标记（样式靠 .is-today 加深底色与描边）
 assert.strictEqual(tabEl.querySelectorAll(".cal-month-cell.is-today").length, 1, "月视图应恰好一个今日单元格");
+
+// 待办在日历上按「到期日」落位：跨日待办（开始今天/到期明天）不应落在今天
+const cellsWithCross = [...tabEl.querySelectorAll(".cal-month-cell")].filter((c) =>
+  c.textContent.includes("跨日待办")
+);
+assert.strictEqual(cellsWithCross.length, 1, "跨日待办应只落在一天（按到期日，不重复）");
+assert.ok(!cellsWithCross[0].classList.contains("is-today"), "跨日待办不应落在开始日（今天）");
 assert.ok(tabEl.querySelector(".cal-month-cell.is-today .cal-today-badge"), "今日单元格应有日期徽标");
 
 // ---- 年视图 ----
@@ -112,6 +137,10 @@ assert.ok(tabEl.querySelector(".caldav-app").classList.contains("is-task"), "任
 const filterSel = tabEl.querySelector(".cal-task-filter");
 assert.ok(filterSel, "任务视图应有筛选下拉框");
 assert.strictEqual(filterSel.value, "allincomplete", "任务视图默认应为「所有未完成」筛选");
+assert.ok(
+  [...tabEl.querySelectorAll(".cal-task")].some((t) => t.textContent.includes("无截止任务")),
+  "「所有未完成」下应能看到无日期待办（清空日期后不至于「消失」）"
+);
 const nodateOpt = Array.from(filterSel.options).find((o) => o.value === "nodate");
 assert.ok(nodateOpt, "筛选下拉框应含「无日期」选项");
 filterSel.value = "nodate";
@@ -119,10 +148,31 @@ filterSel.dispatchEvent(new Event("change", { bubbles: true }));
 const nodateTasks = tabEl.querySelectorAll(".cal-task");
 assert.ok(nodateTasks.length >= 1, "「无日期」筛选应有任务");
 assert.ok([...nodateTasks].some((t) => t.textContent.includes("无截止任务")), "应含无截止任务");
+assert.ok(
+  [...nodateTasks].some((t) => t.textContent.includes("仅开始时间任务")),
+  "只有开始时间、无到期日的待办应归入「无日期」（待办按到期日归属）"
+);
 assert.ok(![...nodateTasks].some((t) => t.textContent.includes("测试条目 2")), "不应含带日期的任务");
 filterSel.value = "today";
 filterSel.dispatchEvent(new Event("change", { bubbles: true }));
 assert.ok(tabEl.querySelectorAll(".cal-task").length >= 1, "「今日」筛选应有任务");
+assert.ok(
+  ![...tabEl.querySelectorAll(".cal-task")].some((t) => t.textContent.includes("仅开始时间任务")),
+  "只有开始时间的待办不应算「今日」"
+);
+// 跨日待办：开始在今天、到期在明天 → 应归「明日」而不是「今日」
+assert.ok(
+  ![...tabEl.querySelectorAll(".cal-task")].some((t) => t.textContent.includes("跨日待办")),
+  "跨日待办不应按开始日归到「今日」"
+);
+filterSel.value = "tomorrow";
+filterSel.dispatchEvent(new Event("change", { bubbles: true }));
+assert.ok(
+  [...tabEl.querySelectorAll(".cal-task")].some((t) => t.textContent.includes("跨日待办")),
+  "跨日待办应按到期日归到「明日」"
+);
+filterSel.value = "allincomplete";
+filterSel.dispatchEvent(new Event("change", { bubbles: true }));
 
 // ---- 周/日视图 ----
 click(tabEl.querySelector('[data-action="today"]'));
@@ -144,6 +194,15 @@ click(chip);
 assert.ok(document.querySelector(".caldav-editor"), "编辑弹窗应打开");
 assert.ok(document.querySelector('[data-f="summary"]').value.includes("测试条目"), "弹窗应载入标题");
 assert.ok(document.querySelector(".caldav-section--card"), "编辑弹窗应使用卡片分组");
+// 编辑既有条目必须能看到删除入口（此前误加了 it.raw 条件，从服务器拉取的条目无 raw → 按钮消失）
+const delBtn = document.querySelector('.caldav-editor-foot [data-action="delete"]');
+assert.ok(delBtn, "编辑既有条目应显示删除按钮");
+// 删除走「再点一次确认」，不依赖思源原生 confirm（在插件 iframe 里点确认无响应）
+const countBeforeArm = plugin.store.getAll().length;
+click(delBtn);
+assert.ok(delBtn.classList.contains("is-armed"), "首次点击删除应进入确认态");
+assert.match(delBtn.textContent || "", /确认删除/, "确认态文案应提示再点一次");
+assert.strictEqual(plugin.store.getAll().length, countBeforeArm, "仅进入确认态时不应改动数据");
 assert.ok(document.querySelector('[data-f="startDate"]'), "应拆分为开始日期输入");
 assert.ok(document.querySelector('[data-f="startTime"]'), "应拆分为开始时间输入");
 const calInput = document.querySelector('input[data-f="calendar"]');
@@ -237,6 +296,10 @@ click(dockEl.querySelector('[data-toggle="add"]'));
 assert.ok(!dockEl.querySelector('[data-pop="add"]').hidden, "点击「新增」应展开下拉");
 click(dockEl.querySelector('[data-action="add-event"]'));
 assert.ok(document.querySelector(".caldav-editor"), "新增事件应打开编辑弹窗");
+assert.ok(
+  !document.querySelector('.caldav-editor-foot [data-action="delete"]'),
+  "新建弹窗不应有删除按钮"
+);
 click(document.querySelector('[data-action="cancel"]'));
 assert.ok(!document.querySelector(".caldav-editor"), "弹窗应关闭");
 
@@ -262,7 +325,102 @@ assert.ok(testMsg && testMsg.textContent.includes("服务器地址不能为空")
 document.querySelector(".b3-dialog .b3-dialog--close")?.remove();
 settingsEl?.closest(".b3-dialog")?.remove();
 
+// ---- 右键菜单：日历/任务视图上右击条目 → 编辑 / 删除 ----
+const rclick = (el, x = 200, y = 200) =>
+  el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+const ctxMenuEl = tabEl.querySelector(".caldav-ctxmenu");
+assert.ok(ctxMenuEl, "日历面板应渲染右键菜单容器");
+assert.ok(ctxMenuEl.hidden, "右键菜单默认应收起");
+assert.ok(ctxMenuEl.querySelector('[data-ctx="edit"]'), "右键菜单应有「编辑」项");
+assert.ok(ctxMenuEl.querySelector('[data-ctx="delete"]'), "右键菜单应有「删除」项");
+
+const rcTarget = tabEl.querySelector(".cal-chip[data-open], .cal-task[data-open]");
+assert.ok(rcTarget, "应能找到一个条目做右击测试");
+const rcKey = rcTarget.dataset.open;
+// 非条目区域右击不应展开菜单
+rclick(tabEl.querySelector(".caldav-view"));
+assert.ok(ctxMenuEl.hidden, "在空白处右击不应展开菜单");
+// 条目上右击 → 展开，且阻止浏览器原生菜单
+const rcEv = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 180, clientY: 160 });
+rcTarget.dispatchEvent(rcEv);
+assert.ok(rcEv.defaultPrevented, "在条目上右击应阻止原生右键菜单");
+assert.ok(!ctxMenuEl.hidden, "在条目上右击应展开菜单");
+assert.ok(/\d+px/.test(ctxMenuEl.style.left) && /\d+px/.test(ctxMenuEl.style.top), "菜单应定位到鼠标位置");
+// 「编辑」应打开编辑弹窗并收起菜单
+click(ctxMenuEl.querySelector('[data-ctx="edit"]'));
+assert.ok(document.querySelector(".caldav-editor"), "右键菜单「编辑」应打开编辑弹窗");
+assert.ok(ctxMenuEl.hidden, "点击「编辑」后菜单应收起");
+click(document.querySelector('[data-action="cancel"]'));
+assert.ok(!document.querySelector(".caldav-editor"), "弹窗应关闭");
+// 右击 → Esc 收起
+rclick(rcTarget, 220, 180);
+assert.ok(!ctxMenuEl.hidden, "再次右击应展开菜单");
+document.dispatchEvent(new (globalThis.window.KeyboardEvent)("keydown", { key: "Escape", bubbles: true }));
+assert.ok(ctxMenuEl.hidden, "Esc 应收起右键菜单");
+// 右击 → 点外部区域收起
+rclick(rcTarget, 220, 180);
+assert.ok(!ctxMenuEl.hidden, "第三次右击应展开菜单");
+click(tabEl.querySelector(".caldav-view"));
+assert.ok(ctxMenuEl.hidden, "点击菜单外部应收起右键菜单");
+
+// ---- 右键删除：首次点击进入确认态，再次点击才真正删除 ----
+rclick(rcTarget, 240, 200);
+const ctxDel = ctxMenuEl.querySelector('[data-ctx="delete"]');
+assert.ok(ctxDel && !ctxMenuEl.hidden, "右键菜单删除项应可见");
+click(ctxDel);
+assert.ok(ctxDel.classList.contains("is-armed"), "右键删除首次点击应进入确认态");
+assert.ok(plugin.store.get(rcKey), "确认态下条目不应被删除");
+click(ctxDel);
+await new Promise((r) => setTimeout(r, 80));
+const rcAfter = plugin.store.get(rcKey);
+assert.ok(
+  !rcAfter || rcAfter.deleted === true,
+  "右键删除第二次点击应执行删除（本地移除或标记为待删除）"
+);
+assert.ok(ctxMenuEl.hidden, "删除成功后菜单应收起");
+
+// ---- 删除流程：首次点击进入确认态，再次点击才真正删除 ----
+const anyOpen = tabEl.querySelector(".cal-chip[data-open], .cal-task[data-open]");
+assert.ok(anyOpen, "应能点开一个条目做删除测试");
+const targetKey = anyOpen.dataset.open;
+click(anyOpen);
+const delBtn2 = document.querySelector('.caldav-editor-foot [data-action="delete"]');
+assert.ok(delBtn2, "删除测试用的编辑弹窗应有删除按钮");
+click(delBtn2);
+assert.ok(delBtn2.classList.contains("is-armed"), "首次点击应进入确认态");
+assert.ok(plugin.store.get(targetKey), "确认态下条目不应被删除");
+click(delBtn2);
+await new Promise((r) => setTimeout(r, 80));
+const afterDelete = plugin.store.get(targetKey);
+assert.ok(
+  !afterDelete || afterDelete.deleted === true,
+  "第二次点击应执行删除（本地移除或标记为待删除）"
+);
+
 // ---- 卸载 ----
 plugin.onunload();
 
+// ---- CSS 防回归：对话框圆角在悬停时不应抖动 ----
+const builtCss = fs.readFileSync(path.resolve("dist/index.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+assert.ok(
+  !/\.caldav-foot-btn:hover\s*\{[^}]*filter\s*:/.test(builtCss),
+  "页脚按钮 hover 不应使用 filter（会生成合成层，导致对话框圆角短暂变方角）"
+);
+assert.ok(
+  !/\.caldav-foot-btn\s*\{[^}]*transition:\s*all/.test(builtCss),
+  "页脚按钮不应使用 transition: all（会把合成属性纳入过渡，引发重绘抖动）"
+);
+assert.ok(
+  /\.caldav-editor-foot\s*\{[^}]*border-radius:\s*0\s+0/.test(builtCss),
+  "对话框页脚应自带底部圆角，避免直角背景盖住容器圆角"
+);
+// 主按钮 hover 不能变成浅色底（--b3-theme-primary-light 是浅色调），否则白字看不清
+assert.ok(
+  !/\.caldav-foot-btn--primary:hover\s*\{[^}]*background:\s*var\(--caldav-accent-2\)/.test(builtCss),
+  "主按钮 hover 不应使用浅色 --caldav-accent-2（白字配浅底不可读）"
+);
+assert.ok(
+  /\.caldav-foot-btn--primary:hover\s*\{[^}]*color:\s*#fff/.test(builtCss),
+  "主按钮 hover 必须保持白色文字，保证与加深底色对比度"
+);
 console.log("[loader] 模拟思源加载链路全部通过（Dock 一行5按钮/下拉 + 年视图 + 分段切换 + 排序 + 编辑弹窗）");

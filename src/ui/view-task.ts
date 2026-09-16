@@ -4,8 +4,7 @@
  */
 import { addDays, diffDays, parseLocalStamp, startOfWeek, todayStamp } from "../core/date";
 import type { CalItem } from "../core/types";
-import { calColorOf, escape, keyOfItem, type ViewArgs } from "./view-common";
-import { occurrencesInRange } from "../core/ics";
+import { calColorOf, escape, keyOfItem, todoDueOccurrences, type ViewArgs } from "./view-common";
 
 type FilterKey =
   | "today"
@@ -74,13 +73,13 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
   for (const it of ctx.store.getAll()) {
     if (it.kind !== "todo" || it.deleted) continue;
     if (!enabled.has(it.calendarUrl)) continue;
-    // 到期口径与 Dock 列表一致：优先截止时间，无截止时用开始时间
-    const dueSrc = it.end || it.start;
+    // 待办的归属时间段一律以「到期日期」为准（无到期日则进「无日期」）
+    const dueSrc = it.end;
     if (!dueSrc) {
       todos.push({ it, due: "" });
       continue;
     }
-    const occs = occurrencesInRangeForTodo(it, endMs);
+    const occs = todoDueOccurrences(it, parseLocalStamp(today).getTime(), endMs);
     todos.push({ it, due: occs.length && occs[0] ? occs[0].slice(0, 10) : dueSrc.slice(0, 10) });
   }
 
@@ -193,10 +192,6 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
 
 function done(it: CalItem): boolean {
   return it.percent === 100;
-}
-
-function occurrencesInRangeForTodo(it: CalItem, endMs: number): string[] {
-  return occurrencesInRange(it, parseLocalStamp(todayStamp()).getTime(), endMs);
 }
 
 export function genUid(): string {
