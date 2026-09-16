@@ -61,7 +61,10 @@ function addDir(dir, base) {
     const p = path.join(dir, name);
     const rel = base ? base + "/" + name : name;
     if (fs.statSync(p).isDirectory()) addDir(p, rel);
-    else zip.file(rel, fs.readFileSync(p));
+    else {
+      const stat = fs.statSync(p);
+      zip.file(rel, fs.readFileSync(p), { date: stat.mtime });
+    }
   }
 }
 addDir(pkgDir, "");
