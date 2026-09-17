@@ -59,6 +59,7 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
         </div>
       </div>
       <div class="caldav-toolbar-right">
+        <button class="caldav-icon-btn" data-action="toggle-view" title="切换到任务视图" aria-label="切换到任务视图"></button>
         <div class="caldav-calfilter-wrap">
           <button class="caldav-icon-btn" data-action="calfilter" title="日历筛选">${icons.layers}</button>
           <div class="caldav-calfilter-pop" data-pop="calfilter" hidden>
@@ -90,6 +91,7 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
   const cursorTitleEl = root.querySelector(".caldav-cursor-title") as HTMLElement;
   const ctxMenu = root.querySelector(".caldav-ctxmenu") as HTMLElement;
   const segBtns = Array.from(root.querySelectorAll(".caldav-seg-btn")) as HTMLElement[];
+  const viewToggleBtn = root.querySelector('[data-action="toggle-view"]') as HTMLElement;
   let destroyed = false;
   /** 右键菜单当前指向的条目 key */
   let ctxMenuKey: string | null = null;
@@ -129,6 +131,16 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     segBtns.forEach((b) => b.classList.toggle("is-active", b.dataset.view === ctx.viewMode));
     app.classList.toggle("is-task", ctx.viewMode === "task");
     cursorTitleEl.textContent = cursorTitle();
+    renderViewToggle();
+  }
+
+  /** 视图切换按钮：图标表示「点击后将切换到的视图」，标题同步说明，随当前视图模式更新 */
+  function renderViewToggle(): void {
+    const toTask = ctx.viewMode !== "task";
+    viewToggleBtn.innerHTML = toTask ? icons.taskList : icons.calCheck;
+    const label = toTask ? "切换到任务视图" : "切换到日历视图";
+    viewToggleBtn.title = label;
+    viewToggleBtn.setAttribute("aria-label", label);
   }
 
   /** 当前启用日历下、时间窗内的展开实例（待办按到期日，见 view-common.todoDueOccurrences） */
@@ -307,6 +319,13 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
       return;
     }
     const action = target.dataset.action;
+    if (action === "toggle-view") {
+      // 日历视图（年/月/周/日）↔ 任务视图 互切；从任务视图返回时统一落回月视图
+      ctx.viewMode = ctx.viewMode === "task" ? "month" : "task";
+      notifyViewChange(ctx.viewMode);
+      renderAll();
+      return;
+    }
     if (action === "prev" || action === "next") {
       const dir = action === "next" ? 1 : -1;
       ctx.cursor = stepCursor(ctx.cursor, ctx.viewMode, dir);
@@ -330,7 +349,8 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     }
     if (action === "new-event" || action === "new-todo") {
       const kind: CalKind = action === "new-event" ? "event" : "todo";
-      openEditor(ctx, { kind, start: ctx.cursor + (kind === "event" ? "T09:00:00" : "") });
+      // 只给日期，时刻交给编辑弹窗补默认值（今天 = 下一个整点）
+      openEditor(ctx, { kind, start: ctx.cursor });
       return;
     }
     if (action === "calfilter") {
@@ -398,6 +418,31 @@ export function notifyViewChange(mode: ViewMode): void {
  * Dock 面板：标题「日历任务管理」+ 一行 5 个按钮。
  * 新增 / 排序 为下拉菜单；日历视图 / 任务视图 打开主窗口页签；刷新 触发重新同步。
  */
+type DockFilter =
+  | "today" | "tomorrow" | "next7" | "thisweek" | "future"
+  | "overdue" | "past7" | "undone" | "nodate"
+  | "doneToday" | "doneYesterday" | "done";
+
+/**
+ * Dock 筛选下拉的选项（数组顺序即下拉中的顺序）。
+ * 下拉是**自定义**的而非原生 <select>：原生弹出列表由操作系统绘制，
+ * 选中项永远是系统高亮色（蓝），CSS 无法让它跟随主题（option:hover / :checked 会被忽略）。
+ */
+const DOCK_FILTERS: Array<{ key: DockFilter; label: string }> = [
+  { key: "next7", label: "未来七天" },
+  { key: "today", label: "今日任务" },
+  { key: "tomorrow", label: "明日任务" },
+  { key: "thisweek", label: "本周任务" },
+  { key: "future", label: "未来任务" },
+  { key: "overdue", label: "过期任务" },
+  { key: "past7", label: "过去七天" },
+  { key: "undone", label: "所有未完成" },
+  { key: "nodate", label: "无日期任务" },
+  { key: "doneToday", label: "今日已完成" },
+  { key: "doneYesterday", label: "昨日已完成" },
+  { key: "done", label: "已完成" }
+];
+
 export interface DockPanelOpts {
   store: CalStore;
   onNav: (mode: ViewMode) => void;
@@ -444,21 +489,15 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
 <div class="caldav-dock-list">
   <div class="caldav-dock-list-head">
     <div class="caldav-dock-filter-wrap">
-      <select class="caldav-dock-select" data-dock="filter">
-        <option value="next7">未来七天</option>
-        <option value="today">今日任务</option>
-        <option value="tomorrow">明日任务</option>
-        <option value="thisweek">本周任务</option>
-        <option value="future">未来任务</option>
-        <option value="overdue">过期任务</option>
-        <option value="past7">过去七天</option>
-        <option value="undone">所有未完成</option>
-        <option value="nodate">无日期任务</option>
-        <option value="doneToday">今日已完成</option>
-        <option value="doneYesterday">昨日已完成</option>
-        <option value="done">已完成</option>
-      </select>
+      <button class="caldav-dock-select" data-dock="filter" data-toggle="dock-filter" type="button">
+        <span class="caldav-dock-select-text"></span>
+      </button>
       <span class="caldav-dock-select-arrow">${icons.chevron}</span>
+      <div class="caldav-dock-pop caldav-dock-filter-pop" data-pop="dock-filter" hidden>
+        ${DOCK_FILTERS.map(
+          (f) => `<button class="caldav-dock-popitem" data-dock-filter="${f.key}" type="button">${f.label}</button>`
+        ).join("")}
+      </div>
     </div>
     <button class="caldav-dock-filter-btn" data-dock="category">分类筛选</button>
     <div class="caldav-dock-cat-pop" data-pop="category" hidden>
@@ -526,6 +565,16 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     });
   }
 
+  /** 同步筛选触发按钮上的文案，并高亮下拉里的当前项 */
+  function syncDockFilterLabel(): void {
+    const label = DOCK_FILTERS.find((f) => f.key === dockFilter)?.label || "";
+    const textEl = root.querySelector<HTMLElement>(".caldav-dock-select-text");
+    if (textEl) textEl.textContent = label;
+    root.querySelectorAll<HTMLElement>("[data-dock-filter]").forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.dockFilter === dockFilter);
+    });
+  }
+
   function renderStatus(): void {
     if (destroyed) return;
     const s = opts.store.settings;
@@ -574,11 +623,6 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     errorEl.title = text;
   }
 
-  type DockFilter =
-    | "today" | "tomorrow" | "next7" | "thisweek" | "future"
-    | "overdue" | "past7" | "undone" | "nodate"
-    | "doneToday" | "doneYesterday" | "done";
-
   let dockFilter: DockFilter = "next7";
   let dockSearch = "";
   let dockCategoryFilter: string[] = []; // 空 = 所有分类；"__none__" = 无分类
@@ -603,21 +647,35 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     const weekEnd = addDays(weekStart, 6).slice(0, 10);
     const isTodo = it.kind === "todo";
     const isDone = isTodo && it.percent === 100;
+    /** 已过期但尚未完成的待办 —— 这类条目即使过期也要留在列表里 */
+    const overdue = isTodo && !isDone && !!date && diff < 0;
+    // 事件是否已结束：按**结束时间**与当前时刻比较（进行中的保留，只有真正结束的才隐藏）。
+    // 全天事件只有日期，按日期比较，避免当天事件过了 00:00 就被藏掉。
+    const evEnd = it.end || it.start || "";
+    const ended = !isTodo && !!evEnd && (isDateOnly(evEnd) ? evEnd < today : evEnd < stampOfMs(Date.now()));
+
+    /**
+     * 时间窗筛选统一口径：
+     *  - 待办：命中窗口，或者「已过期且未完成」（没完成的过期任务照样显示）
+     *  - 事件：命中窗口，且尚未结束（当前时间以前的不显示）
+     */
+    const inWindow = (hit: boolean): boolean => (isTodo ? hit || overdue : hit && !ended);
 
     switch (filter) {
       case "today":
-        return date === today;
+        return inWindow(date === today);
       case "tomorrow":
-        return date === addDays(today, 1).slice(0, 10);
+        return inWindow(date === addDays(today, 1).slice(0, 10));
       case "next7":
-        return diff >= 0 && diff <= 6;
+        return inWindow(diff >= 0 && diff <= 6);
       case "thisweek":
-        return date >= weekStart && date <= weekEnd;
+        return inWindow(date >= weekStart && date <= weekEnd);
       case "future":
-        return diff >= 0;
+        return inWindow(diff >= 0);
       case "overdue":
-        return isTodo && !isDone && !!date && diff < 0;
+        return overdue;
       case "past7":
+        // 回顾用：保留过去 7 天（含已经结束的事件），不套用 inWindow
         return diff >= -6 && diff < 0;
       case "undone":
         return isTodo && !isDone;
@@ -664,29 +722,48 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     return "";
   }
 
+  /**
+   * iCal PRIORITY（1 最高、9 最低）→ 文案与配色级别。
+   * 覆盖 1~9 全部取值，不只认 1/3/5/9 这四个数字。
+   */
+  function prioMeta(p: number): { label: string; cls: string } {
+    if (p <= 2) return { label: "紧急", cls: "prio-urgent" };
+    if (p <= 4) return { label: "高", cls: "prio-high" };
+    if (p <= 6) return { label: "中", cls: "prio-mid" };
+    return { label: "低", cls: "prio-low" };
+  }
+
   function buildDockTags(it: CalItem): string {
     const tags: string[] = [];
     const today = todayStamp();
     const date = dateKeyOf(it);
     const diff = diffDays(date, today);
+    const isDoneTodo = it.kind === "todo" && it.percent === 100;
+    // 逾期天数：只有「未完成且到期日已过」的待办才算逾期（完成的过往条目不该标红）
+    const overdueDays = it.kind === "todo" && !isDoneTodo && !!date && diff < 0 ? -diff : 0;
 
-    // 主时间标签
+    // 主时间标签：逾期的待办直接标成红色「逾期 N 天」
+    // （原来的「N 天前」说的正是同一件事，改成红色标志更醒目，也避免同一行出现两个重复标签）
     let timeLabel = "";
-    if (it.kind === "todo" && it.percent === 100) timeLabel = "已完成";
+    let timeCls = "caldav-dock-tag--primary";
+    if (overdueDays > 0) {
+      timeLabel = `逾期 ${overdueDays} 天`;
+      timeCls = "caldav-dock-tag--overdue";
+    } else if (isDoneTodo) timeLabel = "已完成";
     else if (!date) timeLabel = "无日期";
     else if (diff === 0) timeLabel = "今天";
     else if (diff === 1) timeLabel = "明天";
     else if (diff > 1) timeLabel = `${diff}天后开始`;
     else if (diff === -1) timeLabel = "昨天";
     else timeLabel = `${-diff}天前`;
-    tags.push(`<span class="caldav-dock-tag caldav-dock-tag--primary">${timeLabel}</span>`);
+    tags.push(`<span class="caldav-dock-tag ${timeCls}">${timeLabel}</span>`);
 
     // 类型 / 优先级
     if (it.kind === "event") {
       tags.push(`<span class="caldav-dock-tag caldav-dock-tag--secondary">${icons.calendar}日程</span>`);
     } else if (it.priority) {
-      const pMap: Record<number, string> = { 1: "紧急", 3: "高", 5: "中", 9: "低" };
-      tags.push(`<span class="caldav-dock-tag caldav-dock-tag--secondary">${icons.flag}${pMap[it.priority] || "任务"}</span>`);
+      const pm = prioMeta(it.priority);
+      tags.push(`<span class="caldav-dock-tag caldav-dock-tag--secondary ${pm.cls}">${icons.flag}${pm.label}</span>`);
     } else {
       tags.push(`<span class="caldav-dock-tag caldav-dock-tag--secondary">${icons.tasks}任务</span>`);
     }
@@ -836,8 +913,7 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     const nodateBtn = t.closest("[data-dock-action='show-nodate']");
     if (nodateBtn) {
       dockFilter = "nodate";
-      const sel = root.querySelector<HTMLSelectElement>("[data-dock='filter']");
-      if (sel) sel.value = "nodate";
+      syncDockFilterLabel();
       renderDockList();
       ev.stopPropagation();
       return;
@@ -917,6 +993,16 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
       return;
     }
 
+    // 筛选下拉：选中某一项
+    const filterItem = t.closest("[data-dock-filter]") as HTMLElement | null;
+    if (filterItem && root.contains(filterItem)) {
+      dockFilter = filterItem.dataset.dockFilter as DockFilter;
+      syncDockFilterLabel();
+      renderDockList();
+      closePops();
+      return;
+    }
+
     // 菜单展开/收起
     const toggle = t.closest("[data-toggle]") as HTMLElement | null;
     if (toggle && root.contains(toggle)) {
@@ -925,13 +1011,7 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
     }
   });
 
-  root.addEventListener("change", (ev) => {
-    const target = ev.target as HTMLElement;
-    if (target.dataset.dock === "filter") {
-      dockFilter = (target as HTMLSelectElement).value as DockFilter;
-      renderDockList();
-    }
-  });
+  // 筛选下拉已改为自定义控件（原生 <select> 的 change 监听随之移除）
 
   root.addEventListener("input", (ev) => {
     const target = ev.target as HTMLElement;
@@ -958,6 +1038,7 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
   });
   renderStatus();
   renderSortActive();
+  syncDockFilterLabel();
   renderDockList();
 
   return {

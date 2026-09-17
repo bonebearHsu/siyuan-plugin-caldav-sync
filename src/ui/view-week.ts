@@ -125,7 +125,7 @@ export function renderWeekView({ ctx, viewEl, occurrences }: ViewArgs, days: num
     col.addEventListener("dblclick", (ev) => {
       if ((ev.target as HTMLElement).closest(".cal-chip")) return; // 双击已有事件本身则不新建
       const day = col.dataset.day!;
-      let startEvent = day + "T09:00:00";
+      let startEvent = day; // 只给日期；具体时刻由编辑弹窗补（今天 = 下一个整点）
       if (col.classList.contains("cal-wk-col") && ev.target === col) {
         const rect = col.getBoundingClientRect();
         const mins = Math.floor(((ev.clientY - rect.top) / rect.height) * 1440 / 30) * 30;

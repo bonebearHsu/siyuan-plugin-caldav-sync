@@ -5,7 +5,7 @@ import { Dialog } from "siyuan";
 import type { CalItem, CalKind, CategoryDef, Recurrence } from "../core/types";
 import { DEFAULT_CATEGORIES } from "../core/types";
 import { keyOf } from "../core/store";
-import { addDays, isDateOnly, parseLocalStamp, todayStamp } from "../core/date";
+import { addDays, defaultStartStamp, isDateOnly, parseLocalStamp, stampOfMs, todayStamp } from "../core/date";
 import type { PanelCtx } from "./panel";
 import { escape } from "./view-common";
 import { icons } from "./icons";
@@ -33,6 +33,8 @@ export function openEditor(ctx: PanelCtx, preset: EditorPreset): void {
     cals[0];
 
   const isNew = !editing;
+  // 新建时的默认开始时间：日期是今天就落在「下一个整点」，其它日期落在当天 09:00
+  const newStart = defaultStartStamp(preset.start || todayStamp());
   const it: CalItem = editing
     ? { ...editing }
     : {
@@ -42,8 +44,8 @@ export function openEditor(ctx: PanelCtx, preset: EditorPreset): void {
         href: defaultCal.url.replace(/\/+$/, "") + "/" + genUid() + ".ics",
         summary: "",
         allDay: false,
-        start: preset.start || todayStamp() + "T09:00:00",
-        end: preset.end || addHoursStr(preset.start || todayStamp() + "T09:00:00", 1),
+        start: newStart,
+        end: preset.end || addHoursStr(newStart, 1),
         priority: 0,
         status: "NEEDS-ACTION",
         percent: 0,
@@ -214,8 +216,12 @@ function editorHtml(
           </div>
           <button type="button" class="caldav-input-clear" data-clear="startDate" title="清除日期">${icons.trash}</button>
           <div class="caldav-input-wrap caldav-input-wrap--time" ${it.allDay ? 'style="display:none"' : ""}>
-            <span class="caldav-input-icon">${icons.clock}</span>
-            <input class="caldav-input caldav-time-input" data-f="startTime" type="time" value="${startTime}"/>
+            <input type="hidden" data-f="startTime" value="${startTime}"/>
+            <button type="button" class="caldav-input caldav-time-trigger" data-time="startTime">
+              <span class="caldav-input-icon">${icons.clock}</span>
+              <span class="caldav-time-text" data-time-text="startTime">${startTime || "--:--"}</span>
+            </button>
+            <div class="caldav-time-pop" data-time-pop="startTime" hidden></div>
           </div>
           <button class="caldav-input-clear caldav-input-clear--time" data-clear="startTime" title="清除时间" ${it.allDay ? 'style="display:none"' : ""}>${icons.trash}</button>
         </div>
@@ -235,8 +241,12 @@ function editorHtml(
           </div>
           <button type="button" class="caldav-input-clear" data-clear="endDate" title="清除日期">${icons.trash}</button>
           <div class="caldav-input-wrap caldav-input-wrap--time" ${it.allDay ? 'style="display:none"' : ""}>
-            <span class="caldav-input-icon">${icons.clock}</span>
-            <input class="caldav-input caldav-time-input" data-f="endTime" type="time" value="${endTime}"/>
+            <input type="hidden" data-f="endTime" value="${endTime}"/>
+            <button type="button" class="caldav-input caldav-time-trigger" data-time="endTime">
+              <span class="caldav-input-icon">${icons.clock}</span>
+              <span class="caldav-time-text" data-time-text="endTime">${endTime || "--:--"}</span>
+            </button>
+            <div class="caldav-time-pop" data-time-pop="endTime" hidden></div>
           </div>
           <button class="caldav-input-clear caldav-input-clear--time" data-clear="endTime" title="清除时间" ${it.allDay ? 'style="display:none"' : ""}>${icons.trash}</button>
         </div>
@@ -425,10 +435,114 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
     applyCalendar(opt.dataset.calUrl || "");
     if (calPop) calPop.hidden = true;
   });
+  // ---- 自定义时间选择器 ----
+  // 原生 <input type="time"> 的弹出面板由浏览器绘制，选中项固定是系统高亮色（蓝），
+  // 换主题也不会变（CSS 改不动它），所以改成自绘的「时 / 分」两列弹层，配色全走主题变量。
+  const timePops = Array.from(el.querySelectorAll<HTMLElement>("[data-time-pop]"));
+
+  function closeTimePops(): void {
+    timePops.forEach((p) => (p.hidden = true));
+  }
+
+  /** 把 hidden input 的值同步到触发按钮上的文字（清空时显示 --:--） */
+  function syncTimeText(name: string): void {
+    const inp = f(name);
+    const textEl = el.querySelector<HTMLElement>(`[data-time-text="${name}"]`);
+    if (textEl) textEl.textContent = inp.value || "--:--";
+  }
+
+  function renderTimePop(pop: HTMLElement, name: string): void {
+    const raw = f(name).value;
+    const cur = /^\d{2}:\d{2}$/.test(raw) ? raw : "09:00";
+    const [ch, cm] = cur.split(":");
+    const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+    const minutes: string[] = [];
+    for (let m = 0; m < 60; m += 5) minutes.push(String(m).padStart(2, "0"));
+    if (!minutes.includes(cm)) minutes.push(cm); // 已有值不在 5 分钟刻度上时保留，避免一打开就被改掉
+    minutes.sort();
+    const col = (key: string, values: string[], active: string) =>
+      `<div class="caldav-time-col" data-col="${key}">${values
+        .map(
+          (v) =>
+            `<button type="button" class="caldav-time-item${
+              v === active ? " is-active" : ""
+            }" data-time-val="${v}">${v}</button>`
+        )
+        .join("")}</div>`;
+    pop.innerHTML = col("h", hours, ch) + col("m", minutes, cm);
+    pop.querySelector(".caldav-time-item.is-active")?.scrollIntoView?.({ block: "center" });
+  }
+
+  /** "YYYY-MM-DDTHH:mm" 加一小时，返回同格式（跨天会进位到次日） */
+  function plusHour(stamp: string): string {
+    const d = parseLocalStamp(stamp);
+    d.setHours(d.getHours() + 1);
+    return stampOfMs(d.getTime()).slice(0, 16);
+  }
+
+  /**
+   * 开始时间变化后的结束时间联动：
+   *  - 日程：结束时间为空、或早于开始时间 → 置为「开始 + 1 小时」
+   *  - 待办：开始/结束都允许为空；仅当已有结束时间早于开始时间时才置为「开始 + 1 小时」
+   * 比较用完整的「日期 + 时间」，因此跨天的结束时间（如 17 日 23:00 → 18 日 10:00）
+   * 不会被误判成「早于开始」而遭到改写。
+   */
+  function syncEndAfterStartChange(): void {
+    const sd = f("startDate").value;
+    const st = f("startTime").value;
+    if (!sd || !st) return; // 开始时间被清空或未选择时不做联动
+    const startStamp = `${sd}T${st}`;
+    const ed = f("endDate").value;
+    const et = f("endTime").value;
+    const endStamp = ed && et ? `${ed}T${et}` : "";
+    if (!endStamp && isTodo) return; // 待办允许结束留空
+    if (endStamp && endStamp >= startStamp) return; // 结束不早于开始，保持原值
+    const next = plusHour(startStamp);
+    f("endDate").value = next.slice(0, 10);
+    f("endTime").value = next.slice(11, 16);
+    syncTimeText("endTime");
+    f("endTime").dispatchEvent(new Event("input")); // 让「持续」时长跟着重算
+  }
+
+  function toggleTimePop(name: string): void {
+    const pop = timePops.find((p) => p.dataset.timePop === name);
+    if (!pop) return;
+    const open = !pop.hidden;
+    closeTimePops();
+    if (open) return;
+    renderTimePop(pop, name);
+    pop.hidden = false;
+  }
+
   // 点击弹层外部收起（点在各自 wrap 内不收，便于输入框聚焦/点选）
   el.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
     if (calPop && !calPop.hidden && !calWrap?.contains(t)) calPop.hidden = true;
+
+    // 时间选择器：触发按钮展开/收起，选项落值（弹层内容每次打开时重建，故用事件委托）
+    const timeTrigger = t.closest<HTMLElement>("[data-time]");
+    if (timeTrigger) {
+      toggleTimePop(timeTrigger.dataset.time!);
+      return;
+    }
+    const timeItem = t.closest<HTMLElement>("[data-time-val]");
+    if (timeItem) {
+      const pop = timeItem.closest<HTMLElement>("[data-time-pop]");
+      const name = pop?.dataset.timePop || "";
+      const colKey = timeItem.closest<HTMLElement>(".caldav-time-col")?.dataset.col || "h";
+      const inp = f(name);
+      const raw = inp.value;
+      const [h, m] = (/^\d{2}:\d{2}$/.test(raw) ? raw : "09:00").split(":");
+      inp.value = colKey === "h" ? `${timeItem.dataset.timeVal}:${m}` : `${h}:${timeItem.dataset.timeVal}`;
+      syncTimeText(name);
+      if (name === "startTime") syncEndAfterStartChange(); // 开始时间变了 → 按规则联动结束时间
+      inp.dispatchEvent(new Event("input")); // 让「持续」时长跟着重算
+      pop
+        ?.querySelectorAll<HTMLElement>(`.caldav-time-col[data-col="${colKey}"] .caldav-time-item`)
+        .forEach((b) => b.classList.toggle("is-active", b === timeItem));
+      return;
+    }
+    if (!t.closest(".caldav-input-wrap--time")) closeTimePops();
   });
 
   // 任务分类药丸：单选/多选，点「无分类」清空
@@ -487,9 +601,13 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
     timeClears.forEach((c) => (c.style.display = allDay ? "none" : ""));
     if (durationRow) durationRow.style.display = allDay || isTodo ? "none" : "";
     if (!allDay) {
-      if (!f("startTime").value) f("startTime").value = "09:00";
-      if (!f("endTime").value) f("endTime").value = "10:00";
+      // 取消「全天」时补默认时间，与新建默认一致：落在下一个整点，而不是固定 9:00
+      const ds = defaultStartStamp(f("startDate").value);
+      if (!f("startTime").value) f("startTime").value = ds.slice(11, 16);
+      if (!f("endTime").value) f("endTime").value = addHoursStr(ds, 1).slice(11, 16);
     }
+    syncTimeText("startTime");
+    syncTimeText("endTime");
     updateDuration();
   });
 
@@ -505,6 +623,7 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
       const inp = f(target);
       inp.value = "";
       inp.dispatchEvent(new Event("input"));
+      syncTimeText(target); // 日期没有配套文字节点，命中不到时静默跳过
     });
   });
 

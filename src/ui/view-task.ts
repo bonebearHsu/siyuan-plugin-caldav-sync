@@ -2,7 +2,7 @@
  * 任务视图：模仿思源「任务笔记管理」插件的下拉筛选风格。
  * 顶部一个筛选下拉（12 个维度 + 计数），下方展示当前筛选下的待办列表。
  */
-import { addDays, diffDays, parseLocalStamp, startOfWeek, todayStamp } from "../core/date";
+import { addDays, defaultStartStamp, diffDays, parseLocalStamp, startOfWeek, todayStamp } from "../core/date";
 import type { CalItem } from "../core/types";
 import { calColorOf, escape, keyOfItem, todoDueOccurrences, type ViewArgs } from "./view-common";
 
@@ -86,7 +86,14 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
   const countOf = (f: TaskFilter) => todos.filter((t) => f.match(t.it, t.due)).length;
   const current: FilterKey = ((viewEl.dataset.filter as FilterKey) || "allincomplete") as FilterKey;
 
-  const priorityLabel = (p?: number) => (p === 1 ? "紧急" : p === 3 ? "高" : p === 5 ? "中" : p === 9 ? "低" : "");
+  /** iCal PRIORITY（1 最高、9 最低）→ 文案与配色级别；覆盖 1~9 全部取值 */
+  const priorityMeta = (p?: number): { label: string; cls: string } => {
+    if (!p || p <= 0) return { label: "", cls: "" };
+    if (p <= 2) return { label: "紧急", cls: "prio-urgent" };
+    if (p <= 4) return { label: "高", cls: "prio-high" };
+    if (p <= 6) return { label: "中", cls: "prio-mid" };
+    return { label: "低", cls: "prio-low" };
+  };
 
   function listHtml(filterKey: FilterKey): string {
     const f = filters.find((x) => x.key === filterKey)!;
@@ -99,7 +106,7 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
         const k = keyOfItem(it);
         const isDone = done(it);
         const overdue = !isDone && !!due && due < today;
-        const pr = priorityLabel(it.priority);
+        const pr = priorityMeta(it.priority);
         const cal = ctx.store.settings.calendars.find((c) => c.url === it.calendarUrl);
         const dueText = isDone
           ? it.completedAt
@@ -119,7 +126,7 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
   <button class="cal-task-check" data-toggle="${k}" title="${isDone ? "标记未完成" : "标记完成"}">${isDone ? "✓" : ""}</button>
   <div class="cal-task-body">
     <div class="cal-task-title">${it.rrule ? "↻ " : ""}${escape(it.summary || "(无标题)")}
-      ${pr ? `<span class="cal-task-priority">${pr}</span>` : ""}</div>
+      ${pr.label ? `<span class="cal-task-priority ${pr.cls}">${pr.label}</span>` : ""}</div>
     <div class="cal-task-meta">
       <span class="${overdue ? "cal-task-overdue" : ""}">${dueText}</span>
       ${it.description ? `<span class="cal-task-desc" title="${escape(it.description)}">${escape(it.description).slice(0, 40)}</span>` : ""}
@@ -175,8 +182,9 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
           href: cal.url.replace(/\/+$/, "") + "/" + genUid() + ".ics",
           summary: title,
           allDay: false,
-          start: today + "T09:00:00",
-          end: today + "T09:00:00",
+          // 快速添加同样落在「下一个整点」，而不是固定 9:00
+          start: defaultStartStamp(today),
+          end: defaultStartStamp(today),
           priority: 0,
           status: "NEEDS-ACTION",
           percent: 0,

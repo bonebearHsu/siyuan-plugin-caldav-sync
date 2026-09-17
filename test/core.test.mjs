@@ -330,4 +330,25 @@ await ta("凭据异常可被检出（用于界面提示）", async () => {
   assert.strictEqual(st.credentialsIssue(), undefined);
 });
 
+// ---- 新建时的默认开始时间：今天落在「下一个整点」，不再是固定 9:00 ----
+t("defaultStartStamp：今天取下一个整点", () => {
+  const d = new Date();
+  d.setHours(d.getHours() + 1, 0, 0, 0);
+  const expectHH = `${String(d.getHours()).padStart(2, "0")}:00`;
+  const val = date.defaultStartStamp(date.todayStamp());
+  assert.strictEqual(val.slice(11, 16), expectHH, "今天的新建默认应为当前时间的下一个整点");
+  assert.strictEqual(val.slice(14, 16), "00", "分钟必须是 00");
+});
+t("defaultStartStamp：非今天取 09:00、已带时间原样、空值按今天", () => {
+  assert.strictEqual(date.defaultStartStamp("2099-01-01"), "2099-01-01T09:00:00", "非今天应为当天 09:00");
+  assert.strictEqual(date.defaultStartStamp("2099-01-01T14:30:00"), "2099-01-01T14:30:00", "已带时间应原样返回");
+  const d = new Date();
+  d.setHours(d.getHours() + 1, 0, 0, 0);
+  assert.strictEqual(
+    date.defaultStartStamp().slice(11, 16),
+    `${String(d.getHours()).padStart(2, "0")}:00`,
+    "不传参数时按今天处理"
+  );
+});
+
 console.log(`\n[core] ${passed} 项通过`);

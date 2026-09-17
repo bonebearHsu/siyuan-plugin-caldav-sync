@@ -87,4 +87,26 @@ export function seedStore(plugin) {
   store.put(
     mk(9, { summary: "跨日待办", kind: "todo", start: `${todayStamp}T09:00:00`, end: `${tomorrowStamp}T18:00:00` })
   );
+
+  const dayBack = (n) => {
+    const d = new Date(today.getTime() - n * 86400000);
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+  // 明确已经结束的过去事件：用于验证「当前时间以前的日程不显示」
+  store.put(mk(10, { summary: "昨天的会议", start: `${dayBack(1)}T09:00:00`, end: `${dayBack(1)}T10:00:00` }));
+  // 日期在窗口内、但当天早已结束的日程：这才是「按当前时刻判断」与「只按日期判断」的分水岭
+  // （零点整结束，除极端边界外恒为“已结束”）
+  store.put(mk(12, { summary: "已结束的早会", start: `${todayStamp}T00:00:00`, end: `${todayStamp}T00:00:00` }));
+  // 逾期未完成的待办（前天到期、优先级最高）：过期也必须留在列表里，并标红「逾期 2 天」
+  store.put(
+    mk(11, {
+      summary: "逾期待办",
+      kind: "todo",
+      percent: 0,
+      status: "NEEDS-ACTION",
+      priority: 1,
+      start: `${dayBack(2)}T09:00:00`,
+      end: `${dayBack(2)}T18:00:00`
+    })
+  );
 }

@@ -58,6 +58,23 @@ export function todayStamp(): LocalStamp {
   return dateStampOfMs(Date.now());
 }
 
+/**
+ * 补上默认时刻的开始时间戳（新建日程/任务时用）：
+ *  - 传入「今天」→ 当前时间的**下一个整点**（如 11:23 → 12:00；23:30 → 次日 00:00，日期一并进位）
+ *  - 传入其它日期（或什么都没传，按今天算）→ 当天 09:00
+ *  - 已经带时间的字符串原样返回
+ *
+ * 这样一来「新建」不再固定落在 9:00，而是落在下一个整点，符合直觉。
+ */
+export function defaultStartStamp(stamp = ""): LocalStamp {
+  if (stamp.length > 10) return stamp; // 已经带了具体时间
+  const date = stamp || todayStamp();
+  if (date !== todayStamp()) return `${date}T09:00:00`;
+  const d = new Date();
+  d.setHours(d.getHours() + 1, 0, 0, 0);
+  return stampOfMs(d.getTime());
+}
+
 export function addDays(stamp: LocalStamp, days: number): LocalStamp {
   const d = parseLocalStamp(stamp);
   d.setDate(d.getDate() + days);

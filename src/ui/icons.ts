@@ -1,12 +1,19 @@
-/** 内联 SVG 图标（思源风格描边图标，currentColor） */
+/** 内联 SVG 图标（思源风格描边图标，currentColor）
+ *
+ * ⚠️ 宿主坑：思源 base.css 存在全局规则 `svg { fill: currentColor }`。
+ * presentation 属性 `fill="none"` 优先级低于 CSS，会被覆盖 —— 于是 rect/圆/闭合 path
+ * 全被填成实心黑块，只有 line/polyline 不受影响。
+ * 解法：用**内联 style** 强制 `fill:none`（内联样式 > element 选择器）。
+ * stroke 仍保留为属性，便于各处 CSS 定制颜色（如 .is-open svg { stroke:#fff }）。
+ */
 function svg(path: string, viewBox = "0 0 24 24", strokeWidth = 2): string {
-  return `<svg viewBox="${viewBox}" width="14" height="14" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+  return `<svg viewBox="${viewBox}" width="14" height="14" fill="none" stroke="currentColor" style="fill:none;stroke-width:${strokeWidth};stroke-linecap:round;stroke-linejoin:round">${path}</svg>`;
 }
 
 export const icons = {
   calendar: svg('<rect x="3.5" y="4.5" width="17" height="16.5" rx="3"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/>', "0 0 24 24", 1.6),
   server: svg('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><ellipse cx="12" cy="19" rx="9" ry="3"/>'),
-  tasks: svg('<rect x="3.5" y="4" width="8" height="8" rx="2.2"/><path d="M5.8 8l1.6 1.6 2.6-3"/><line x1="14.5" y1="6.5" x2="20.5" y2="6.5"/><rect x="3.5" y="13" width="8" height="8" rx="2.2"/><line x1="14.5" y1="15.5" x2="20.5" y2="15.5"/><line x1="14.5" y1="18.5" x2="18.5" y2="18.5"/>', "0 0 24 24", 1.6),
+  tasks: svg('<rect x="3.5" y="4.5" width="6.5" height="6.5" rx="2"/><path d="M5.2 7.9l1.5 1.5 2.4-2.8"/><line x1="13.5" y1="6" x2="20.5" y2="6"/><line x1="13.5" y1="9.5" x2="17.5" y2="9.5"/><rect x="3.5" y="13" width="6.5" height="6.5" rx="2"/><line x1="13.5" y1="14.5" x2="20.5" y2="14.5"/><line x1="13.5" y1="18" x2="17.5" y2="18"/>', "0 0 24 24", 1.6),
   month: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="10" x2="9" y2="20"/><line x1="15" y1="10" x2="15" y2="20"/>'),
   week: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="10" x2="8" y2="20"/><line x1="13" y1="10" x2="13" y2="20"/><line x1="18" y1="10" x2="18" y2="20"/>'),
   day: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>'),
@@ -34,10 +41,18 @@ export const icons = {
   gear: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
   pencil: svg('<path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>'),
   reset: svg('<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>'),
-  /* Dock 专用：参考图风格的细描边图标（stroke 1.6） */
-  sortDown: svg('<path d="M7 4v11"/><polyline points="3.5 12.5 7 16 10.5 12.5"/><line x1="14" y1="5" x2="21" y2="5"/><line x1="14" y1="9" x2="19" y2="9"/><line x1="14" y1="13" x2="17" y2="13"/>', "0 0 24 24", 1.6),
-  plusThin: svg('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>', "0 0 24 24", 1.6),
-  calCheck: svg('<rect x="3.5" y="4.5" width="17" height="16.5" rx="3"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/>', "0 0 24 24", 1.6),
-  taskList: svg('<rect x="3.5" y="4" width="8" height="8" rx="2.2"/><path d="M5.8 8l1.6 1.6 2.6-3"/><line x1="14.5" y1="6.5" x2="20.5" y2="6.5"/><rect x="3.5" y="13" width="8" height="8" rx="2.2"/><line x1="14.5" y1="15.5" x2="20.5" y2="15.5"/><line x1="14.5" y1="18.5" x2="18.5" y2="18.5"/>', "0 0 24 24", 1.6),
-  refreshThin: svg('<path d="M20 12a8 8 0 0 0-14.1-5.1L4.5 9.5"/><polyline points="4 4.5 4.5 9.5 9.5 8.5"/><path d="M4 12a8 8 0 0 0 14.1 5.1L19.5 14.5"/><polyline points="20 19.5 19.5 14.5 14.5 15.5"/>', "0 0 24 24", 1.6)
+  /* Dock 专用：统一视觉语言的细描边图标
+   *
+   * 放大策略：viewBox 收紧到「图形实际范围 + 描边余量」，让图形填满整个画布，
+   * 画布自身的像素尺寸再由 .caldav-dock-act svg 控制，二者相乘即最终视觉大小。
+   * 因 viewBox 边长各不相同，strokeWidth 需与边长成反比，才能保证五个图标的
+   * 视觉描边粗细一致（基准：边长 21 时用 1.6，最终视觉约 1.5px @ 20px 画布）。 */
+  sortDown: svg('<path d="M7.5 4.5v15"/><polyline points="4 8 7.5 4.5 11 8"/><polyline points="4 16 7.5 19.5 11 16"/><line x1="14" y1="5.5" x2="21" y2="5.5"/><line x1="14" y1="12" x2="18.5" y2="12"/><line x1="14" y1="18.5" x2="16.5" y2="18.5"/>', "1.5 1.5 21 21", 1.6),
+  /* 十字符号本身只占 24 网格的一半，留白最多，故单独收紧到 15.2 边长并调细描边 */
+  plusThin: svg('<line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/>', "4.4 4.4 15.2 15.2", 1.15),
+  calCheck: svg('<rect x="3.5" y="4.5" width="17" height="16" rx="3.5"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8.5" y1="3" x2="8.5" y2="6"/><line x1="15.5" y1="3" x2="15.5" y2="6"/><circle cx="12" cy="14.6" r="1.6" style="fill:currentColor;stroke:none"/>', "1.5 1.5 21 21", 1.6),
+  taskList: svg('<rect x="3.5" y="4.5" width="6.5" height="6.5" rx="2"/><path d="M5.2 7.9l1.5 1.5 2.4-2.8"/><line x1="13.5" y1="6" x2="20.5" y2="6"/><line x1="13.5" y1="9.5" x2="17.5" y2="9.5"/><rect x="3.5" y="13" width="6.5" height="6.5" rx="2"/><line x1="13.5" y1="14.5" x2="20.5" y2="14.5"/><line x1="13.5" y1="18" x2="17.5" y2="18"/>', "1.5 1.5 21 21", 1.6),
+  /* 刷新：双弧 + 双箭头构成循环（两段弧的圆心均在 (12,12)，图形天然居中，
+     实际范围 x 4~20 / y 4.08~19.92，故 viewBox 以 12 为中心收到 19.6 边长） */
+  refreshThin: svg('<path d="M20 12a8 8 0 0 0-14.1-5.1L4.5 9.5"/><polyline points="4 4.5 4.5 9.5 9.5 8.5"/><path d="M4 12a8 8 0 0 0 14.1 5.1L19.5 14.5"/><polyline points="20 19.5 19.5 14.5 14.5 15.5"/>', "2.2 2.2 19.6 19.6", 1.49)
 };

@@ -44,7 +44,8 @@ export function openDateAddMenu(ctx: PanelCtx, x: number, y: number, day: string
     item.addEventListener("click", (e) => {
       e.stopPropagation();
       const kind = item.dataset.kind as "event" | "todo";
-      const start = kind === "event" ? startEvent || day + "T09:00:00" : day;
+      // 点击空白处新建时只带日期，时刻交给编辑弹窗补（今天 = 下一个整点）
+      const start = kind === "event" ? startEvent || day : day;
       close();
       openEditor(ctx, { kind, start });
     });

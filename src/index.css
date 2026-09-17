@@ -942,6 +942,75 @@
   z-index: 1;
 }
 .caldav-input-suffix svg { width: 13px; height: 13px; }
+
+/* 时间选择器：原生 <input type="time"> 的弹出面板由浏览器绘制，选中项固定为系统高亮色（蓝），
+   换主题也不会变，故改为自绘弹层（时 / 分两列），配色全部取自主题变量。 */
+/* 宽度沿用原来的时间输入，并给出最小宽度，避免框被压窄后数字挤在一起 */
+.caldav-input-wrap--time {
+  position: relative;
+  flex: 0 0 128px;
+  min-width: 0;
+}
+/* 必须用双类选择器：.caldav-input 的 `padding: 8px 11px` 简写定义在文件更靠后的位置，
+   单类的 .caldav-time-trigger 会被它整体覆盖 —— 左侧内边距失效后，
+   时间数字就会从最左端开始、被绝对定位的时钟图标压住。
+   （button 默认也不继承字体族，一并显式继承。） */
+.caldav-input.caldav-time-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 11px 8px 30px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+.caldav-time-text {
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.caldav-time-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--caldav-bg);
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+.caldav-time-pop[hidden] { display: none; }
+.caldav-time-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 232px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.caldav-time-item {
+  min-width: 46px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--caldav-text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.caldav-time-item:hover { background: var(--caldav-bg-3); }
+/* 选中项：主题色实底 + 白字（写在 :hover 之后，保证悬停时仍是选中态配色） */
+.caldav-time-item.is-active {
+  background: var(--caldav-accent);
+  color: #fff;
+}
 .caldav-field-icon .caldav-input:not(select) { padding-right: 28px; }
 .caldav-field-icon select.caldav-input { padding-right: 28px; }
 
@@ -2070,7 +2139,8 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   transition: background .15s ease, color .15s ease, border-color .15s ease,
     transform .15s ease, box-shadow .15s ease;
 }
-.caldav-dock-act svg { width: 16px; height: 16px; }
+/* 画布尺寸：与各图标收紧后的 viewBox 配合，让图形占满按钮内框（按钮 38px 见方） */
+.caldav-dock-act svg { width: 20px; height: 20px; }
 .caldav-dock-act:hover {
   background: var(--caldav-bg-3);
   border-color: var(--caldav-accent);
@@ -2275,6 +2345,24 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   pointer-events: none;
 }
 .caldav-dock-select-arrow svg { width: 13px; height: 13px; }
+.caldav-dock-select .caldav-dock-select-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 筛选下拉：原生 <select> 的弹出列表由系统绘制，选中色永远是系统高亮色（蓝）、
+   无法随主题变化（option:hover / :checked 会被忽略），故改为自定义弹层。
+   弹层复用 .caldav-dock-pop / .caldav-dock-popitem，hover 与选中态天然跟随主题。 */
+.caldav-dock-filter-wrap { position: relative; }
+.caldav-dock-filter-pop {
+  left: 0;
+  right: 0;
+  min-width: 100%;
+  max-height: 264px;
+  overflow-y: auto;
+}
 
 .caldav-dock-filter-btn {
   flex: 0 0 auto;
@@ -2464,6 +2552,31 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   background: var(--d-input);
   color: var(--d-text-2);
   border: 1px solid var(--d-border);
+}
+
+/* 逾期标志：未完成的待办即使过期也留在列表里，用红色醒目标出 */
+.caldav-dock-tag--overdue {
+  background: color-mix(in srgb, var(--caldav-danger) 14%, transparent);
+  color: var(--caldav-danger);
+  border: 1px solid color-mix(in srgb, var(--caldav-danger) 30%, transparent);
+}
+
+/* 优先级配色：数值越小越重要（iCal PRIORITY 1~9）。
+   底色统一由 currentColor 派生，所以只需给出文字色，底色自动配套。 */
+.prio-urgent { color: var(--caldav-danger); }
+.prio-high { color: color-mix(in srgb, var(--caldav-danger) 70%, #f5c542); }
+.prio-mid { color: var(--caldav-accent); }
+.prio-low { color: var(--caldav-text-2); }
+.caldav-dock-tag--secondary.prio-urgent,
+.caldav-dock-tag--secondary.prio-high,
+.caldav-dock-tag--secondary.prio-mid,
+.caldav-dock-tag--secondary.prio-low,
+.cal-task-priority.prio-urgent,
+.cal-task-priority.prio-high,
+.cal-task-priority.prio-mid,
+.cal-task-priority.prio-low {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  border-color: color-mix(in srgb, currentColor 32%, transparent);
 }
 
 /* ===== 年视图 ===== */

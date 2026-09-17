@@ -40,7 +40,21 @@ assert.ok(
   "Dock 按钮应为纯图标（不含文字标签）"
 );
 assert.strictEqual(dockEl.querySelectorAll(".caldav-dock-menu[data-menu]").length, 2, "新增/排序 应为带下拉的菜单");
-assert.strictEqual(dockEl.querySelectorAll(".caldav-dock-popitem").length, 9, "新增 2 个 + 排序 7 个共 9 个选项");
+assert.strictEqual(
+  dockEl.querySelectorAll(".caldav-dock-menu .caldav-dock-popitem").length,
+  9,
+  "新增 2 个 + 排序 7 个共 9 个选项"
+);
+// 筛选下拉必须是自定义控件：原生 <select> 的弹出列表由系统绘制，选中色永远是系统高亮色，
+// 无法随主题变化（option:hover / :checked 会被浏览器忽略）。
+assert.ok(!dockEl.querySelector("select[data-dock='filter']"), "筛选下拉不应再用原生 select");
+assert.strictEqual(dockEl.querySelectorAll("[data-dock-filter]").length, 12, "筛选下拉应有 12 个自定义选项");
+
+/** 选择某个筛选：先展开下拉，再点选项（与用户实际操作一致） */
+const pickDockFilter = (key) => {
+  click(dockEl.querySelector('[data-dock="filter"]'));
+  click(dockEl.querySelector(`[data-dock-filter="${key}"]`));
+};
 assert.ok(!dockEl.querySelector(".caldav-dock-btn"), "不应再使用旧 nav 按钮");
 assert.ok(!dockEl.querySelector(".caldav-app"), "Dock 不应渲染完整日历面板");
 assert.ok(!dockEl.querySelector(".cal-month-grid"), "Dock 不应渲染月视图网格");
@@ -60,20 +74,61 @@ assert.ok(dockEl.querySelector(".caldav-dock-items"), "Dock 应有任务列表�
 assert.ok(dockEl.querySelectorAll(".caldav-dock-item").length >= 1, "默认「未来七天」筛选下 Dock 应渲染任务卡片");
 assert.ok(dockEl.querySelector(".caldav-dock-tag"), "任务卡片应包含标签");
 
+// ---- 筛选口径：日程按当前时刻判断（已结束的不显示），待办未完成即使逾期也显示 ----
+const dockItemTexts = () => [...dockEl.querySelectorAll(".caldav-dock-item")].map((el) => el.textContent || "");
+assert.ok(
+  !dockItemTexts().some((t) => t.includes("昨天的会议")),
+  "「未来七天」不应显示已经结束的日程事件"
+);
+assert.ok(
+  !dockItemTexts().some((t) => t.includes("已结束的早会")),
+  "「未来七天」不应显示日期在窗口内、但当天早已结束的日程（判断依据是当前时刻，不只是日期）"
+);
+const overdueItem = [...dockEl.querySelectorAll(".caldav-dock-item")].find((el) =>
+  (el.textContent || "").includes("逾期待办")
+);
+assert.ok(overdueItem, "未完成的过期待办即使过期也应保留在「未来七天」中");
+assert.ok(
+  overdueItem.querySelector(".caldav-dock-tag--overdue")?.textContent?.includes("逾期 2 天"),
+  "过期待办应带红色「逾期 2 天」标志"
+);
+assert.ok(
+  overdueItem.querySelector(".caldav-dock-tag.prio-urgent"),
+  "优先级 1 的任务标签应带 prio-urgent 类（按重要程度区分颜色）"
+);
+assert.ok(
+  [...dockEl.querySelectorAll(".caldav-dock-tag")].some((t) => t.classList.contains("prio-high")),
+  "优先级 3 的任务标签应带 prio-high 类"
+);
+
 // 无日期待办不能被静默隐藏（用户清空日期后曾反馈「记录不见了」）
 const nodateHint = dockEl.querySelector(".caldav-dock-hint");
 assert.ok(nodateHint, "默认筛选下应提示存在未显示的无日期待办");
 assert.ok(/无日期待办/.test(nodateHint.textContent || ""), "提示文案应说明是无日期待办");
 click(nodateHint);
-assert.strictEqual(dockEl.querySelector("[data-dock='filter']").value, "nodate", "点击提示应切到「无日期」筛选");
+assert.strictEqual(
+  dockEl.querySelector(".caldav-dock-select-text").textContent,
+  "无日期任务",
+  "点击提示应切到「无日期」筛选（触发按钮文案同步）"
+);
 assert.ok(
   [...dockEl.querySelectorAll(".caldav-dock-item")].some((el) => el.textContent.includes("无截止任务")),
   "无日期筛选下应能看到无日期待办"
 );
+// 「今日任务」沿用同一口径
+pickDockFilter("today");
+const todayTexts = dockItemTexts();
+assert.ok(
+  todayTexts.some((t) => t.includes("逾期待办")),
+  "「今日任务」也应显示未完成的过期待办"
+);
+assert.ok(
+  !todayTexts.some((t) => t.includes("昨天的会议")),
+  "「今日任务」不应显示已经结束的过去日程"
+);
+
 // 还原默认筛选，避免影响后续断言
-const dockFilterSel = dockEl.querySelector("[data-dock='filter']");
-dockFilterSel.value = "next7";
-dockFilterSel.dispatchEvent(new Event("change", { bubbles: true }));
+pickDockFilter("next7");
 assert.ok(dockEl.querySelector(".caldav-dock-hint"), "切回默认筛选后应再次提示无日期待办");
 
 // Dock 分类筛选弹窗
@@ -89,6 +144,24 @@ assert.ok(catPop.querySelector("[data-cat-key='工作']"), "分类弹窗应含�
 click(catPop.querySelector("[data-cat-key='工作'] input"));
 click(catPop.querySelector("[data-cat-action='ok']"));
 assert.ok(catPop.hidden, "确定后分类弹窗应收起");
+
+// ---- 新建默认开始时间：落在当前时间的「下一个整点」，不再是固定 9:00 ----
+const nextHourHH = (offset) => {
+  const d = new Date();
+  d.setHours(d.getHours() + 1 + offset, 0, 0, 0);
+  return `${String(d.getHours()).padStart(2, "0")}:00`;
+};
+click(dockEl.querySelector('[data-toggle="add"]'));
+click(dockEl.querySelector('[data-action="add-event"]'));
+const newStartInput = document.querySelector('[data-f="startTime"]');
+assert.ok(newStartInput, "点击「新增事件」应打开编辑弹窗");
+assert.strictEqual(newStartInput.value, nextHourHH(0), "新建日程的开始时间应为当前时间的下一个整点");
+assert.strictEqual(
+  document.querySelector('[data-f="endTime"]').value,
+  nextHourHH(1),
+  "新建日程的结束时间应为开始时间 + 1 小时"
+);
+document.querySelectorAll(".caldav-editor").forEach((e) => e.remove());
 
 // ---- Dock「日历视图」按钮 → 在主窗口打开页签 ----
 click(dockEl.querySelector('[data-action="cal-view"]'));
@@ -127,6 +200,27 @@ assert.strictEqual(tabEl.querySelectorAll(".cal-year-month").length, 12, "年视
 // 点击某月标题 → 跳转到月视图
 click(tabEl.querySelector(".cal-year-month-head"));
 assert.ok(tabEl.querySelector(".cal-month-grid"), "点击月份标题应跳转到月视图");
+
+// ---- 工具栏「视图切换」按钮：日历视图 ↔ 任务视图 互切 ----
+const viewToggle = tabEl.querySelector('[data-action="toggle-view"]');
+assert.ok(viewToggle, "工具栏应有视图切换按钮");
+assert.strictEqual(
+  tabEl.querySelector(".caldav-toolbar-right").firstElementChild,
+  viewToggle,
+  "视图切换按钮应是工具栏右侧第一个按钮（位于日历筛选按钮左侧）"
+);
+assert.strictEqual(plugin.mainCtx.viewMode, "month", "前置状态应为月视图");
+assert.strictEqual(viewToggle.title, "切换到任务视图", "日历视图下按钮提示应指向任务视图");
+assert.ok(viewToggle.innerHTML.includes("5.2 7.9l1.5"), "日历视图下按钮图标应为任务清单");
+click(viewToggle);
+assert.strictEqual(plugin.mainCtx.viewMode, "task", "点击后应切到任务视图");
+assert.ok(tabEl.querySelector(".cal-task-view"), "点击后应渲染任务视图");
+assert.strictEqual(viewToggle.title, "切换到日历视图", "任务视图下按钮提示应指向日历视图");
+assert.ok(viewToggle.innerHTML.includes("14.6"), "任务视图下按钮图标应为日历");
+click(viewToggle);
+assert.strictEqual(plugin.mainCtx.viewMode, "month", "再次点击应切回日历视图");
+assert.ok(tabEl.querySelector(".cal-month-grid"), "切回后应渲染月视图");
+assert.strictEqual(viewToggle.title, "切换到任务视图", "切回后按钮提示应再次指向任务视图");
 
 // ---- 任务视图（通过 Dock「任务视图」按钮进入）+ 下拉筛选 ----
 click(dockEl.querySelector('[data-action="task-view"]'));
@@ -188,8 +282,11 @@ assert.ok(/--cols:\s*1\b/.test(dayWk?.getAttribute("style") || ""), "日视图�
 
 // ---- 月视图，点击条目 chip 打开编辑弹窗 ----
 click(tabEl.querySelector('[data-view="month"]'));
-const chip = tabEl.querySelector("[data-open]");
-assert.ok(chip, "月视图应有条目 chip");
+// 月视图按日期顺序排布，过去日期的条目会排在前面，这里按标题定位到目标条目
+const chip = [...tabEl.querySelectorAll("[data-open]")].find((el) =>
+  (el.textContent || "").includes("测试条目")
+);
+assert.ok(chip, "月视图应有「测试条目」chip");
 click(chip);
 assert.ok(document.querySelector(".caldav-editor"), "编辑弹窗应打开");
 assert.ok(document.querySelector('[data-f="summary"]').value.includes("测试条目"), "弹窗应载入标题");
@@ -205,6 +302,74 @@ assert.match(delBtn.textContent || "", /确认删除/, "确认态文案应提示
 assert.strictEqual(plugin.store.getAll().length, countBeforeArm, "仅进入确认态时不应改动数据");
 assert.ok(document.querySelector('[data-f="startDate"]'), "应拆分为开始日期输入");
 assert.ok(document.querySelector('[data-f="startTime"]'), "应拆分为开始时间输入");
+
+// ---- 时间选择器：同样不能用原生 <input type="time">（其弹出面板选中色固定为系统蓝，跟不了主题）----
+assert.ok(!document.querySelector('input[type="time"]'), "时间输入不应再用原生 input[type=time]");
+const timeTrigger = document.querySelector('[data-time="startTime"]');
+assert.ok(timeTrigger, "开始时间应有自定义触发按钮");
+const timePop = document.querySelector('[data-time-pop="startTime"]');
+assert.ok(timePop && timePop.hidden, "时间弹层默认应收起");
+assert.strictEqual(timePop.querySelectorAll(".caldav-time-col").length, 0, "未展开时弹层内容为空（按需生成）");
+click(timeTrigger);
+assert.ok(!timePop.hidden, "点击时间应展开自定义弹层");
+assert.strictEqual(timePop.querySelectorAll(".caldav-time-col").length, 2, "弹层应含「时」「分」两列");
+assert.strictEqual(
+  timePop.querySelectorAll('.caldav-time-col[data-col="h"] .caldav-time-item').length,
+  24,
+  "小时列应有 24 项"
+);
+assert.ok(
+  timePop.querySelector('.caldav-time-col[data-col="h"] .caldav-time-item.is-active'),
+  "弹层应高亮当前小时"
+);
+click(timePop.querySelector('.caldav-time-col[data-col="h"] [data-time-val="15"]'));
+const startTimeInput = document.querySelector('[data-f="startTime"]');
+assert.ok(String(startTimeInput.value).startsWith("15:"), "点选小时后应写入开始时间");
+assert.strictEqual(
+  document.querySelector('[data-time-text="startTime"]').textContent,
+  startTimeInput.value,
+  "触发按钮上的文字应与时间值同步"
+);
+assert.ok(!timePop.hidden, "选完一项后弹层保持展开，便于接着选分钟");
+
+// 时间框必须给左侧绝对定位的时钟图标留出内边距，否则数字会从最左端开始、与图标叠在一起
+const timeCss = fs.readFileSync(path.resolve("dist/index.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+// 必须带 .caldav-input 前缀（双类选择器）：单类规则会被文件更靠后的 `.caldav-input { padding: 8px 11px }`
+// 整体覆盖，左侧内边距失效 → 时间数字会被绝对定位的时钟图标压住（这个坑真实踩过两次）
+assert.match(
+  timeCss,
+  /\.caldav-input\.caldav-time-trigger\s*\{[^}]*padding:\s*8px 11px 8px 30px/,
+  "时间触发按钮必须用双类选择器保留左侧内边距（单类会被 .caldav-input 的 padding 覆盖）"
+);
+assert.match(timeCss, /\.caldav-input-wrap--time\s*\{[^}]*flex:\s*0 0 128px/, "时间框应有固定宽度，避免被压窄");
+
+// 静态匹配看不出「规则被后面的同类规则覆盖」，这里把产物 CSS 真的注入文档、
+// 让浏览器算一遍层叠结果 —— 这才是这条 padding 到底生效没有的判定依据
+const probeStyle = document.createElement("style");
+probeStyle.textContent = timeCss;
+document.head.appendChild(probeStyle);
+const probe = document.createElement("button");
+probe.className = "caldav-input caldav-time-trigger";
+document.body.appendChild(probe);
+assert.strictEqual(
+  window.getComputedStyle(probe).paddingLeft,
+  "30px",
+  "时间按钮的实际左内边距必须是 30px —— 否则时间数字会被时钟图标压住"
+);
+probe.remove();
+probeStyle.remove();
+// ---- 开始时间变化后的结束时间联动 ----
+// 该条目原结束时间 01:30 早于新的开始时间 15:00 → 应被改写为「开始 + 1 小时」
+assert.strictEqual(
+  document.querySelector('[data-f="endTime"]').value,
+  "16:00",
+  "开始时间晚于已有结束时间时，结束时间应自动改为开始时间 + 1 小时"
+);
+assert.strictEqual(
+  document.querySelector('[data-f="endDate"]').value,
+  document.querySelector('[data-f="startDate"]').value,
+  "同日联动时结束日期应与开始日期保持一致"
+);
 const calInput = document.querySelector('input[data-f="calendar"]');
 assert.ok(calInput && calInput.type === "hidden", "编辑弹窗应用隐藏 input 保存日历值（自定义下拉）");
 const calTrigger = document.querySelector(".caldav-cal-trigger");
@@ -397,6 +562,43 @@ assert.ok(
   "第二次点击应执行删除（本地移除或标记为待删除）"
 );
 
+// ---- 待办的时间联动：开始/结束都允许为空；仅当结束早于开始时才顺延 ----
+// 注意用例必须挑「有开始日期」的待办 —— 只有时间、没有日期时无法算出绝对时刻，联动会跳过
+document.querySelectorAll(".caldav-editor").forEach((e) => e.remove()); // 清掉上一步残留的弹窗
+click(dockEl.querySelector('[data-action="task-view"]'));
+const openTodo = (title) => {
+  const chip = [...tabEl.querySelectorAll(".cal-task[data-open]")].find((el) =>
+    (el.textContent || "").includes(title)
+  );
+  assert.ok(chip, `任务视图应能定位到待办：${title}`);
+  click(chip);
+};
+const setStartHour = (hh) => {
+  click(document.querySelector('[data-time="startTime"]'));
+  click(document.querySelector(`[data-time-pop="startTime"] [data-col="h"] [data-time-val="${hh}"]`));
+};
+
+// A. 结束时间为空 → 改开始时间后仍保持为空（待办允许结束留空）
+openTodo("仅开始时间任务");
+assert.strictEqual(document.querySelector('[data-f="endTime"]').value, "", "无结束时间的待办打开时结束时间应为空");
+setStartHour("20");
+assert.strictEqual(
+  document.querySelector('[data-f="endTime"]').value,
+  "",
+  "待办改开始时间后，原本为空的结束时间应保持为空"
+);
+
+// B. 结束时间早于新的开始时间 → 顺延为「开始 + 1 小时」
+document.querySelectorAll(".caldav-editor").forEach((e) => e.remove());
+openTodo("测试条目 2");
+assert.strictEqual(document.querySelector('[data-f="endTime"]').value, "18:00", "前置：该待办结束时间为 18:00");
+setStartHour("20");
+assert.strictEqual(
+  document.querySelector('[data-f="endTime"]').value,
+  "21:00",
+  "待办结束时间早于新的开始时间时，应顺延为开始时间 + 1 小时"
+);
+
 // ---- 卸载 ----
 plugin.onunload();
 
@@ -423,4 +625,31 @@ assert.ok(
   /\.caldav-foot-btn--primary:hover\s*\{[^}]*color:\s*#fff/.test(builtCss),
   "主按钮 hover 必须保持白色文字，保证与加深底色对比度"
 );
+
+// ---- 图标防回归：宿主 base.css 有全局规则 svg{fill:currentColor}，
+//      presentation 属性 fill="none" 优先级低会被覆盖，导致 rect/圆/闭合 path 被填成实心黑块。
+//      必须用内联 style 强制描边；日历里的日期点则用内联 style 保持实心。 ----
+const builtJs = fs.readFileSync(path.resolve("dist/index.js"), "utf8");
+assert.ok(
+  builtJs.includes('style="fill:none'),
+  "图标 svg 必须用内联 style 声明 fill:none（属性形式会被思源 base.css 的 svg{fill:currentColor} 覆盖，闭合图形会变成实心黑块）"
+);
+assert.ok(
+  builtJs.includes('style="fill:currentColor;stroke:none"'),
+  "日历图标内的日期点应保持实心（用内联 style，避免被父级 fill:none 继承覆盖）"
+);
+
+// ---- Dock 图标比例防回归：视觉大小 = 画布像素尺寸 × 图形在 viewBox 中的占比。
+//      两侧都不能缩水：画布不足 20px、或 viewBox 退回 24 网格留白，都会让图标显得小。 ----
+assert.match(
+  builtCss,
+  /\.caldav-dock-act svg\s*\{[^}]*width:\s*20px/,
+  "Dock 操作按钮的图标画布应为 20px（按钮 38px 见方，过小会显得图标局促）"
+);
+for (const vb of ["1.5 1.5 21 21", "4.4 4.4 15.2 15.2", "2.2 2.2 19.6 19.6"]) {
+  assert.ok(
+    builtJs.includes(vb),
+    `Dock 图标应使用按图形收紧的 viewBox「${vb}」（退回 0 0 24 24 会让图形四周留白、视觉变小）`
+  );
+}
 console.log("[loader] 模拟思源加载链路全部通过（Dock 一行5按钮/下拉 + 年视图 + 分段切换 + 排序 + 编辑弹窗）");
