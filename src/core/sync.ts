@@ -21,6 +21,31 @@ export interface SyncReport {
   elapsedMs: number;
 }
 
+/** 取 URL 的「源」（协议 + 主机 + 端口），用于判断两条地址是否属于同一台服务器 */
+export function originOf(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * 找出仍指向旧服务器的日历名。
+ *
+ * 用户在设置里改了「服务器地址」却没有重新点「发现日历」时，`calendars[].url`
+ * 仍是旧地址 —— 这时同步会静默地去连**旧服务器**并且成功，让人误以为新地址可用。
+ */
+export function staleCalendarNames(
+  serverUrl: string,
+  cals: Array<{ url: string; displayName: string }>
+): string[] {
+  const origin = originOf(serverUrl);
+  if (!origin) return [];
+  return cals.filter((c) => originOf(c.url) !== origin).map((c) => c.displayName);
+}
+
 /** 把底层网络错误翻成可读提示（"Failed to fetch" 对用户毫无信息量） */
 function explainError(e: any): string {
   const msg = e?.message || String(e);
@@ -88,6 +113,16 @@ export class SyncEngine {
         this.store.lastError = "没有启用的日历";
         return report;
       }
+      // 服务器地址改过、但日历地址没跟着更新 → 明确报错。
+      // 否则会静默地去连旧服务器并「同步成功」，让用户以为新地址是可用的。
+      const stale = staleCalendarNames(this.store.settings.serverUrl, enabledCals);
+      if (stale.length) {
+        const msg = `服务器地址已变更，以下日历仍指向旧地址，请到设置里重新「发现日历」：${stale.join("、")}`;
+        report.ok = false;
+        report.errors.push(msg);
+        this.store.lastError = msg;
+        return report;
+      }
       const rangeStart = Date.now() - this.store.settings.pastDays * 86400000;
       const rangeEnd = Date.now() + this.store.settings.futureDays * 86400000;
 
@@ -140,6 +175,12 @@ export class SyncEngine {
       // 使用本地时区墙上时间（东八区等），避免 toISOString() 输出 UTC 导致显示偏差
       this.store.lastSync = stampOfMs(Date.now()).replace("T", " ");
       this.store.lastError = report.errors.length ? report.errors.join("; ") : undefined;
+    } catch (e: any) {
+      // 兜底：try 内部若抛出未捕获的异常（例如 pushDirty 直接抛错），原先会跳过上面两行赋值，
+      // 于是 lastError 保持旧值（空）→ 界面继续显示「上次同步 XX」，看起来像同步成功了。
+      report.ok = false;
+      if (!report.errors.length) report.errors.push(explainError(e));
+      this.store.lastError = report.errors.join("; ");
     } finally {
       this.syncing = false;
       report.elapsedMs = Date.now() - t0;

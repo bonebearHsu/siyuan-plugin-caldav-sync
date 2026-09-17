@@ -351,4 +351,30 @@ t("defaultStartStamp：非今天取 09:00、已带时间原样、空值按今天
   );
 });
 
+// ---- 服务器地址变更检测（改了「服务器地址」但没重新发现日历的场景）----
+const syncMod = require(path.join(outDir, "sync.js"));
+t("originOf：取协议 + 主机 + 端口", () => {
+  assert.strictEqual(syncMod.originOf("http://127.0.0.1:5232/testuser/work/"), "http://127.0.0.1:5232");
+  assert.strictEqual(syncMod.originOf("https://dav.example.com/cal/"), "https://dav.example.com");
+  assert.strictEqual(syncMod.originOf("不是网址"), "", "解析失败应返回空串");
+});
+t("staleCalendarNames：改服务器地址后能检出仍指向旧地址的日历", () => {
+  const cals = [
+    { url: "http://127.0.0.1:5232/testuser/work/", displayName: "工作" },
+    { url: "http://127.0.0.1:5232/testuser/personal/", displayName: "个人" }
+  ];
+  assert.deepStrictEqual(syncMod.staleCalendarNames("http://127.0.0.1:5232/", cals), [], "同源不应误报");
+  assert.deepStrictEqual(
+    syncMod.staleCalendarNames("http://new-host:5232/", cals),
+    ["工作", "个人"],
+    "换主机应全部检出（否则会静默连旧服务器并「同步成功」）"
+  );
+  assert.deepStrictEqual(
+    syncMod.staleCalendarNames("http://127.0.0.1:5233/", cals),
+    ["工作", "个人"],
+    "只改端口也算换了服务器"
+  );
+  assert.deepStrictEqual(syncMod.staleCalendarNames("", cals), [], "服务器地址为空时不误报");
+});
+
 console.log(`\n[core] ${passed} 项通过`);

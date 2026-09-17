@@ -145,6 +145,29 @@ click(catPop.querySelector("[data-cat-key='工作'] input"));
 click(catPop.querySelector("[data-cat-action='ok']"));
 assert.ok(catPop.hidden, "确定后分类弹窗应收起");
 
+// ---- 改了「服务器地址」却没重新发现日历：同步必须报错，而不是静默连旧地址「成功」----
+// （用户实测反馈：地址填错保存后点刷新，Dock 仍显示同步成功）
+plugin.store.settings.serverUrl = "http://changed-host:9999/";
+click(dockEl.querySelector('.caldav-dock-act[data-action="sync"]'));
+// 同步是异步的，等状态栏从「同步中…」落定（轮询比固定 sleep 稳）
+const dockStatus = dockEl.querySelector(".caldav-dock-status");
+for (let i = 0; i < 50 && /同步中/.test(dockStatus.textContent || ""); i++) {
+  await new Promise((r) => setTimeout(r, 10));
+}
+assert.match(
+  String(plugin.store.lastError || ""),
+  /服务器地址已变更/,
+  "服务器地址变更后应记录明确错误，并提示重新「发现日历」"
+);
+assert.match(
+  String(dockStatus.textContent || ""),
+  /同步失败/,
+  "Dock 状态栏应显示「同步失败」，而不是看起来像成功的「上次同步」"
+);
+// 还原，避免影响后续断言
+plugin.store.settings.serverUrl = "http://127.0.0.1:5232/";
+plugin.store.lastError = undefined;
+
 // ---- 新建默认开始时间：落在当前时间的「下一个整点」，不再是固定 9:00 ----
 const nextHourHH = (offset) => {
   const d = new Date();
