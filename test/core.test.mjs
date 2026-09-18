@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const outDir = path.join(root, ".test-core");
 
 execSync(
-  `npx tsc src/core/types.ts src/core/date.ts src/core/ics.ts src/core/http.ts src/core/caldav.ts src/core/store.ts src/core/sync.ts src/core/secret.ts ` +
+  `npx tsc src/core/types.ts src/core/date.ts src/core/ics.ts src/core/http.ts src/core/caldav.ts src/core/store.ts src/core/sync.ts src/core/secret.ts src/core/reminder.ts ` +
   `--outDir .test-core --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --strict false`,
   { cwd: root, stdio: "inherit" }
 );
@@ -378,3 +378,48 @@ t("staleCalendarNames：改服务器地址后能检出仍指向旧地址的日�
 });
 
 console.log(`\n[core] ${passed} 项通过`);
+
+// ---- 提醒引擎：只排未来、只提醒带 alarms 的条目、到点触发 ----
+const reminder = require(path.join(outDir, "reminder.js"));
+function makeItem(over) {
+  return {
+    uid: "u1",
+    kind: "event",
+    calendarUrl: "http://x/cal/",
+    href: "http://x/cal/e1.ics",
+    summary: "会议",
+    allDay: false,
+    start: "2099-01-01T10:00:00",
+    ...over
+  };
+}
+await ta("只提醒带 alarms 的条目；未来时刻被排程且到点触发", async () => {
+  const base = new Date("2099-01-01T10:00:00").getTime();
+  let fired = null;
+  const eng = new reminder.ReminderEngine(
+    () => [makeItem({ alarms: [{ minutesBefore: 0 }] })],
+    (item, anchorISO, alarmMin) => { fired = { item, anchorISO, alarmMin }; },
+    () => base - 1500 // now 在开始前 1.5s，fireAt=base → 约 1.5s 后触发
+  );
+  eng.start();
+  await new Promise((r) => setTimeout(r, 1900));
+  eng.stop();
+  assert.ok(fired, "到点应触发 fire");
+  assert.strictEqual(fired.item.uid, "u1");
+  assert.strictEqual(fired.alarmMin, 0);
+});
+await ta("无 alarms 的条目不排程、已过的提醒不补", async () => {
+  let fired = false;
+  const eng = new reminder.ReminderEngine(
+    () => [
+      makeItem({ alarms: undefined }),
+      makeItem({ uid: "u2", start: "2000-01-01T10:00:00", alarms: [{ minutesBefore: 0 }] })
+    ],
+    () => { fired = true; },
+    () => new Date("2099-01-01T10:00:00").getTime()
+  );
+  eng.start();
+  await new Promise((r) => setTimeout(r, 60));
+  eng.stop();
+  assert.strictEqual(fired, false, "无 alarms / 已过的条目不应触发");
+});

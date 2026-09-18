@@ -8,7 +8,8 @@ import { CalStore } from "@/core/store";
 import { SyncEngine } from "@/core/sync";
 import { setSecretSeed } from "@/core/secret";
 import { occurrencesInRange } from "@/core/ics";
-import { todayStamp } from "@/core/date";
+import { todayStamp, fmtDateCn, fmtTime } from "@/core/date";
+import { ReminderEngine } from "@/core/reminder";
 import { renderPanel, renderDockPanel, notifyViewChange, toggleTodoDone, VIEW_CHANGE_EVENT, type PanelCtx, type ViewMode } from "@/ui/panel";
 import { openEditor } from "@/ui/editor";
 import { openSettingsDialog } from "@/ui/settings-dialog";
@@ -23,6 +24,8 @@ export default class CalDavPlugin extends Plugin {
   sync!: SyncEngine;
   /** 主窗口页签共享状态（单例，Dock 导航与页签共用） */
   mainCtx!: PanelCtx;
+  /** 提醒引擎（开启提醒通知时存在） */
+  private reminder?: ReminderEngine;
   private disposers = new Map<string, () => void>();
   private tabPanel: { refresh: () => void } | null = null;
   private tab: Tab | null = null;
@@ -43,6 +46,12 @@ export default class CalDavPlugin extends Plugin {
     await this.store.load();
     this.sync = new SyncEngine(this.store, () => this.store.settings.channel);
     this.mainCtx = this.createCtx();
+
+    // 设置变更 / 同步落盘后：重算提醒开关并重新排程
+    this.store.onChange(() => {
+      this.reconcileReminders();
+      this.reminder?.reschedule();
+    });
 
     // 左侧 Dock：精简导航（视图按钮在主窗口打开/切换日历页签）
     this.addDock({
@@ -141,13 +150,17 @@ export default class CalDavPlugin extends Plugin {
     });
 
     if (this.store.isConfigured()) {
-      this.sync.startAutoSync();
-      setTimeout(() => void this.sync.syncAll(), 3000);
+      this.sync.startAutoSync(() => this.reminder?.reschedule());
+      setTimeout(() => void this.sync.syncAll().then(() => this.reminder?.reschedule()), 3000);
     }
+    // 按当前设置决定是否启动提醒引擎（设置可能已开启）
+    this.reconcileReminders();
   }
 
   onunload(): void {
     this.sync.stopAutoSync();
+    this.reminder?.stop();
+    this.reminder = undefined;
     for (const d of this.disposers.values()) d();
     this.disposers.clear();
     if (this.viewChangeHandler) {
@@ -237,6 +250,77 @@ export default class CalDavPlugin extends Plugin {
   /** 设置入口 */
   openSetting(): void {
     void openSettingsDialog(this.mainCtx);
+  }
+
+  /** 按设置决定是否启用提醒引擎（开关切换/启动时调用） */
+  private reconcileReminders(): void {
+    const want = !!this.store.settings.enableReminders && getFrontend() !== "mobile";
+    if (want && !this.reminder) {
+      void this.ensureNotifyPermission();
+      this.reminder = new ReminderEngine(
+        () => this.store.getAll(),
+        (item, anchorISO, alarmMin) => this.fireReminder(item, anchorISO, alarmMin)
+      );
+      this.reminder.start();
+    } else if (!want && this.reminder) {
+      this.reminder.stop();
+      this.reminder = undefined;
+    }
+  }
+
+  /** 首次开启提醒时请求系统通知授权 */
+  private async ensureNotifyPermission(): Promise<void> {
+    try {
+      if (typeof Notification !== "undefined" && Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+    } catch (e) {
+      console.warn("[caldav] 通知授权失败", e);
+    }
+  }
+
+  /** 到点触发：系统通知（自带声音）+ 站内 toast 兜底 */
+  private fireReminder(item: CalItem, anchorISO: string, alarmMin: number): void {
+    const cal = this.store.settings.calendars.find((c) => c.url === item.calendarUrl);
+    const calName = cal?.displayName || "";
+    const when = item.allDay
+      ? `全天 · ${fmtDateCn(anchorISO)}`
+      : `${fmtDateCn(anchorISO)} ${fmtTime(anchorISO)}`;
+    const title = item.summary || (item.kind === "todo" ? "待办提醒" : "日程提醒");
+    const lead = alarmMin > 0 ? `（提前 ${alarmMin} 分钟）` : "";
+    const body = `${when}${calName ? " · " + calName : ""}${lead}`;
+    try {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        const n = new Notification(title, { body, silent: false });
+        n.onclick = () => {
+          try {
+            this.openPanelTab(item.kind === "todo" ? "task" : "month");
+          } catch {
+            /* 忽略 */
+          }
+          try {
+            n.close();
+          } catch {
+            /* 忽略 */
+          }
+        };
+        setTimeout(() => {
+          try {
+            n.close();
+          } catch {
+            /* 忽略 */
+          }
+        }, 20000);
+      }
+    } catch (e) {
+      console.warn("[caldav] 通知弹出失败", e);
+    }
+    // 站内兜底（窗口可见时也能看到）
+    try {
+      (window as any).siyuan?.pushMsg?.({ msg: `⏰ ${title}　${body}`, type: "info" });
+    } catch {
+      /* 忽略 */
+    }
   }
 
   /** 把今日日程与待办汇总插入当天日记 */

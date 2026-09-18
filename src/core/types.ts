@@ -101,6 +101,8 @@ export interface CalSettings {
   channel: "auto" | "proxy" | "direct";
   /** 自动同步间隔（分钟），0 关闭 */
   syncIntervalMin: number;
+  /** 启用提醒通知（托盘运行时，对设置了提醒时间的日程/待办到点弹系统通知） */
+  enableReminders?: boolean;
   /** 服务端冲突时：server 服务端优先 / local 本地优先 */
   conflict: "server" | "local";
   /** 显示范围：过去 N 天 / 未来 N 天 */
@@ -121,6 +123,7 @@ export const DEFAULT_SETTINGS: CalSettings = {
   calendarPath: "",
   channel: "auto",
   syncIntervalMin: 15,
+  enableReminders: false,
   conflict: "server",
   pastDays: 90,
   futureDays: 370,

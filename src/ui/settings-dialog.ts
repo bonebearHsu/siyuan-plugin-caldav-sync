@@ -87,6 +87,7 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
       s.conflict = $("select[data-s='conflict']").value as any;
       s.pastDays = Math.max(7, +$("input[data-s='past']").value || 90);
       s.futureDays = Math.max(30, +$("input[data-s='future']").value || 370);
+      s.enableReminders = ($("input[data-s='reminders']") as HTMLInputElement).checked;
       // 勾选的日历
       el.querySelectorAll<HTMLElement>(".caldav-set-cal").forEach((row) => {
         const c = s.calendars[+row.dataset.idx!];
@@ -185,6 +186,14 @@ function settingsHtml(s: PanelCtx["store"]["settings"]): string {
         <input class="caldav-input" type="number" min="30" data-s="future" value="${s.futureDays}"/>
       </div>
     </div>
+  </div>
+
+  <div class="caldav-section caldav-section--card">
+    <div class="caldav-section-title"><span class="caldav-section-icon">${icons.bell}</span>提醒</div>
+    <label class="caldav-check-row">
+      <input type="checkbox" data-s="reminders" ${s.enableReminders ? "checked" : ""}/>
+      <span>启用提醒通知（仅对设置了提醒时间的日程/待办生效；思源在托盘运行时到点弹出系统通知并响铃）</span>
+    </label>
   </div>
 </div>
 
