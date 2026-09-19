@@ -18,6 +18,18 @@ export function setupBrowserDom() {
   globalThis.Element = w.Element;
   globalThis.Node = w.Node;
   globalThis.CustomEvent = w.CustomEvent;
+  // jsdom 有 MutationObserver，但插件代码跑在 Node 上下文里，得显式透出来
+  globalThis.MutationObserver = w.MutationObserver;
+}
+
+/**
+ * 等异步收尾落地。
+ * 思源的 Dialog.destroy() 是「先摘 b3-dialog--open 淡出，一个 timeout 之后才
+ * 移除元素并回调 destroyCallback」（桩里同样如此，见 siyuan-stub.cjs）。
+ * 所以断言「弹层已消失」「清理回调已跑」之前必须等一等。
+ */
+export async function settle(rounds = 4) {
+  for (let i = 0; i < rounds; i++) await new Promise((r) => setTimeout(r, 20));
 }
 
 export function loadBuiltPlugin() {

@@ -2,6 +2,8 @@
  * 分类管理弹窗：添加/编辑/删除/排序任务分类，保存后写入 store.settings.categories
  */
 import { Dialog } from "siyuan";
+import { isMobile } from "./device";
+import { adoptMobileLayer } from "./mobile-layers";
 import type { CategoryDef } from "../core/types";
 import { DEFAULT_CATEGORIES } from "../core/types";
 import type { PanelCtx } from "./panel";
@@ -73,13 +75,19 @@ export function openCategoryManager(ctx: PanelCtx): void {
   );
   let editIdx: number | null = null;
 
+  // 移动端竖屏放不下 500px 定宽弹窗，改为占满视口
+  const mobile = isMobile();
   const dialog = new Dialog({
     title: "分类管理",
     content: `<div class="caldav-catmgr caldav-editor">${mgrHtml(cats)}</div>`,
-    width: "500px",
-    height: "72vh",
+    width: mobile ? "100vw" : "500px",
+    height: mobile ? "100vh" : "72vh",
+    containerClassName: mobile ? "caldav-mobile-dialog" : undefined,
     destroyCallback: () => {}
   });
+  // 移动端：分类管理是从编辑弹窗里开出来的**次级弹窗** —— 打开时只收掉多余的层，
+  // 保住下面的编辑弹窗（它上面可能还压着没保存的修改），关掉即回到编辑（见 ui/mobile-layers.ts）
+  adoptMobileLayer(dialog, "sub");
   const el = dialog.element.querySelector(".caldav-catmgr") as HTMLElement;
   enableDialogResize(dialog);
   const errEl = el.querySelector("[data-error]") as HTMLElement;

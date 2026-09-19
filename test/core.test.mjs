@@ -377,7 +377,7 @@ t("staleCalendarNames：改服务器地址后能检出仍指向旧地址的日�
   assert.deepStrictEqual(syncMod.staleCalendarNames("", cals), [], "服务器地址为空时不误报");
 });
 
-console.log(`\n[core] ${passed} 项通过`);
+console.log(`\n---- 基础用例 ${passed} 项通过，继续提醒引擎与 HTTP 通道 ----`);
 
 // ---- 提醒引擎：只排未来、只提醒带 alarms 的条目、到点触发 ----
 const reminder = require(path.join(outDir, "reminder.js"));
@@ -423,3 +423,169 @@ await ta("无 alarms 的条目不排程、已过的提醒不补", async () => {
   eng.stop();
   assert.strictEqual(fired, false, "无 alarms / 已过的条目不应触发");
 });
+await ta("提醒时刻刚过去 5 分钟内仍补发一次（内核刚启动/设置刚打开的场景）", async () => {
+  const anchor = new Date("2099-01-01T10:00:00").getTime();
+  const fired = [];
+  const eng = new reminder.ReminderEngine(
+    () => [makeItem({ alarms: [{ minutesBefore: 10 }] })],
+    (item, anchorISO) => {
+      fired.push(anchorISO);
+    },
+    // 提醒时刻 = 10:00 - 10min = 09:50，令 now = 09:52（已过去 2 分钟，落在宽限期内）
+    () => anchor - 10 * 60000 + 2 * 60000
+  );
+  eng.start();
+  await new Promise((r) => setTimeout(r, 60));
+  eng.stop();
+  assert.strictEqual(fired.length, 1, "宽限期内的过期提醒应补发一次");
+  assert.strictEqual(fired[0], "2099-01-01T10:00:00", "anchor 应为条目的开始时刻");
+});
+await ta("补发过的提醒不会被 rescan 重复补发", async () => {
+  const anchor = new Date("2099-01-01T10:00:00").getTime();
+  const fired = [];
+  const eng = new reminder.ReminderEngine(
+    () => [makeItem({ alarms: [{ minutesBefore: 10 }] })],
+    () => {
+      fired.push(1);
+    },
+    () => anchor - 10 * 60000 + 2 * 60000
+  );
+  eng.start();
+  await new Promise((r) => setTimeout(r, 60));
+  // 模拟同步完成 / 周期 rescan 触发的重排：同一槽位不得二次补发
+  eng.reschedule();
+  await new Promise((r) => setTimeout(r, 60));
+  eng.scheduleAll();
+  await new Promise((r) => setTimeout(r, 60));
+  eng.stop();
+  assert.strictEqual(fired.length, 1, "同一槽位补发后不得重复触发");
+});
+t("armedCount 统计带提醒时间的条目，count 反映当前排程数", () => {
+  const eng = new reminder.ReminderEngine(
+    () => [
+      makeItem({ alarms: [{ minutesBefore: 10 }] }),
+      makeItem({ uid: "u2", alarms: [] }),
+      makeItem({ uid: "u3", start: "2099-01-01T11:00:00" })
+    ],
+    () => {},
+    () => new Date("2099-01-01T09:00:00").getTime()
+  );
+  assert.strictEqual(eng.armedCount(), 1, "只有带 alarms 的条目计入 armedCount");
+  eng.scheduleAll();
+  assert.strictEqual(eng.count(), 1, "只应为带 alarms 的条目排程");
+  eng.stop();
+});
+t("待办只填了到期日（无 DTSTART）也要能排程提醒", () => {
+  const eng = new reminder.ReminderEngine(
+    () => [makeItem({ kind: "todo", start: "", end: "2099-01-01T10:00:00", alarms: [{ minutesBefore: 10 }] })],
+    () => {},
+    () => new Date("2099-01-01T09:00:00").getTime()
+  );
+  eng.scheduleAll();
+  assert.strictEqual(eng.count(), 1, "只有截止日期的待办也应被排程");
+  eng.stop();
+});
+
+// ---- HTTP 通道：直连被拦截时改走内核代理（移动端 Failed to fetch 的兜底）----
+const httpMod = require(path.join(outDir, "http.js"));
+const caldavMod = require(path.join(outDir, "caldav.js"));
+
+const b64decode = (s) => Buffer.from(s, "base64").toString("utf8");
+
+t("buildProxyBody：headers 必须是单键对象数组，写成 [[k,v]] 会被内核静默丢弃（代理通道 401 的根因）", () => {
+  const b = httpMod.buildProxyBody("http://nas.local:5232/bonebear/caldav/", {
+    method: "PROPFIND",
+    body: "<xml/>",
+    headers: { "Content-Type": "application/xml; charset=utf-8", Depth: "0", Authorization: "Basic abc" }
+  });
+  assert.ok(Array.isArray(b.headers), "headers 应为数组");
+  for (const pair of b.headers) {
+    assert.ok(pair && typeof pair === "object" && !Array.isArray(pair), "每项必须是对象，不能是键值对数组");
+    assert.strictEqual(Object.keys(pair).length, 1, "每项只带一个键（内核按 map 遍历）");
+  }
+  const flat = Object.assign({}, ...b.headers);
+  assert.strictEqual(flat.Authorization, "Basic abc", "Authorization 必须被带上，否则服务端必返 401");
+  assert.strictEqual(flat.Depth, "0", "Depth 也不能丢（CalDAV 递归深度）");
+  assert.strictEqual(flat["Content-Type"], undefined, "Content-Type 走独立字段，不能留在 headers 里被内核覆盖");
+  assert.strictEqual(b.contentType, "application/xml; charset=utf-8", "contentType 要透传真实类型，而非固化 text/plain");
+});
+
+t("buildProxyBody：body 一律 base64 且 payload 恒为字符串（无 body 时传空串）", () => {
+  const withBody = httpMod.buildProxyBody("http://x/", { method: "REPORT", body: "<query>中文</query>" });
+  assert.strictEqual(withBody.payloadEncoding, "base64", "text 编码不会发送 body，只能用 base64");
+  assert.strictEqual(b64decode(withBody.payload), "<query>中文</query>", "UTF-8 往返必须无损");
+  assert.strictEqual(withBody.contentType, "text/plain", "未指定 Content-Type 时给个安全的默认值");
+
+  const noBody = httpMod.buildProxyBody("http://x/", { method: "DELETE" });
+  assert.strictEqual(typeof noBody.payload, "string", "payload 必须是字符串，undefined 会让内核报 [payload] must be a string");
+  assert.strictEqual(noBody.payload, "", "无 body 时传空串");
+  assert.strictEqual(b64decode(noBody.payload), "", "空串解码后就是空 body");
+  assert.strictEqual(httpMod.buildProxyBody("http://x/", {}).method, "GET", "未指定 method 时默认 GET");
+  assert.strictEqual(httpMod.buildProxyBody("http://x/", { timeoutMs: 1234 }).timeout, 1234, "超时透传给内核");
+});
+
+t("isNetworkLevelError：只把网络级失败判为网络错误，HTTP 状态码不算", () => {
+  assert.strictEqual(httpMod.isNetworkLevelError(new TypeError("Failed to fetch")), true, "Failed to fetch 属网络级");
+  assert.strictEqual(httpMod.isNetworkLevelError(new Error("Network request failed")), true, "WebView 的报错也应识别");
+  assert.strictEqual(httpMod.isNetworkLevelError(new Error("ERR_CLEARTEXT_NOT_PERMITTED")), true, "明文拦截也应识别");
+  assert.strictEqual(httpMod.isNetworkLevelError(new Error("HTTP 401")), false, "服务器真实响应不是网络错误");
+  assert.strictEqual(httpMod.isNetworkLevelError(new Error("内核代理失败: timeout")), false, "代理通道报错不算");
+});
+
+await ta("移动端：直连被拦截时自动改走内核代理", async () => {
+  const calls = [];
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    if (String(url).includes("forwardProxy")) {
+      return { ok: true, json: async () => ({ code: 0, data: { status: 207, headers: {}, body: "<xml/>" } }) };
+    }
+    throw new TypeError("Failed to fetch");
+  };
+  try {
+    httpMod.setDirectFallbackToProxy(true);
+    const r = await httpMod.httpRequest("http://nas.local:5232/", { method: "PROPFIND" }, "direct", {
+      username: "u",
+      password: "p"
+    });
+    assert.strictEqual(r.via, "proxy", "直连网络级失败后应改走内核代理");
+    assert.ok(calls.some((u) => String(u).includes("forwardProxy")), "应实际调用内核 forwardProxy 接口");
+  } finally {
+    globalThis.fetch = origFetch;
+    httpMod.setDirectFallbackToProxy(false);
+  }
+});
+
+await ta("桌面端：未开启兜底时「仅浏览器直连」的失败原样抛出", async () => {
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new TypeError("Failed to fetch");
+  };
+  try {
+    httpMod.setDirectFallbackToProxy(false);
+    let err = null;
+    try {
+      await httpMod.httpRequest("http://x/", {}, "direct");
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err && /Failed to fetch/.test(err.message), "应抛出原始网络错误，不静默换通道");
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+t("describeNetworkError：直连被拦时把用户引到「请求通道」", () => {
+  const msg = caldavMod.describeNetworkError(new TypeError("Failed to fetch"), "direct");
+  assert.ok(/请求通道/.test(msg), "提示应指向「请求通道」设置项");
+  assert.ok(/Failed to fetch/.test(msg), "保留原始报错便于排查");
+  const auto = caldavMod.describeNetworkError(new TypeError("Failed to fetch"), "auto");
+  assert.ok(!/请求通道/.test(auto), "非直连通道不应建议改通道");
+  assert.strictEqual(
+    caldavMod.describeNetworkError(new Error("HTTP 401"), "direct"),
+    "HTTP 401",
+    "非网络错误原样返回，避免误导"
+  );
+});
+
+console.log(`[core] 合计 ${passed} 项通过（含提醒引擎与 HTTP 通道）`);

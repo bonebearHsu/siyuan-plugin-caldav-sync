@@ -6,7 +6,7 @@
 import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
-import { setupBrowserDom, loadBuiltPlugin, seedStore } from "./helpers.mjs";
+import { setupBrowserDom, loadBuiltPlugin, seedStore, settle } from "./helpers.mjs";
 
 setupBrowserDom();
 const Mod = loadBuiltPlugin();
@@ -227,10 +227,23 @@ assert.ok(tabEl.querySelector(".cal-month-grid"), "点击月份标题应跳转�
 // ---- 工具栏「视图切换」按钮：日历视图 ↔ 任务视图 互切 ----
 const viewToggle = tabEl.querySelector('[data-action="toggle-view"]');
 assert.ok(viewToggle, "工具栏应有视图切换按钮");
+// 工具栏右侧按钮顺序：新建日程 / 新建待办 / 日历筛选 / 视图切换
+const rightGroup = tabEl.querySelector(".caldav-toolbar-right");
 assert.strictEqual(
-  tabEl.querySelector(".caldav-toolbar-right").firstElementChild,
+  rightGroup.lastElementChild,
   viewToggle,
-  "视图切换按钮应是工具栏右侧第一个按钮（位于日历筛选按钮左侧）"
+  "视图切换按钮应是工具栏右侧最后一个（筛选在它左边）"
+);
+assert.deepStrictEqual(
+  Array.from(rightGroup.children).map(
+    (n) => n.dataset.action || n.querySelector("[data-action]")?.dataset.action
+  ),
+  ["new-event", "new-todo", "calfilter", "toggle-view"],
+  "工具栏右侧按钮顺序应为：新建日程 / 新建待办 / 日历筛选 / 视图切换"
+);
+assert.ok(
+  !tabEl.classList.contains("caldav-touch") && !dockEl.classList.contains("caldav-touch"),
+  "桌面端不应带 caldav-touch（把窗口拖窄也应保留条目时间）"
 );
 assert.strictEqual(plugin.mainCtx.viewMode, "month", "前置状态应为月视图");
 assert.strictEqual(viewToggle.title, "切换到任务视图", "日历视图下按钮提示应指向任务视图");
@@ -440,11 +453,13 @@ assert.ok(nameInput, "添加新分类后应出现名称编辑框");
 nameInput.value = "测试分类";
 mgr.querySelector('.caldav-catmgr-row.is-editing [data-mgr="edit"]').dispatchEvent(new MouseEvent("click", { bubbles: true }));
 mgr.querySelector('[data-action="save"]').dispatchEvent(new MouseEvent("click", { bubbles: true }));
+await settle(); // 弹层销毁是异步的（先淡出、后移除并回调）
 assert.ok(!document.querySelector(".caldav-catmgr"), "保存后分类管理弹窗应关闭");
 assert.ok(document.querySelector(".caldav-editor"), "编辑弹窗应仍在");
 assert.ok(document.querySelector(".caldav-foot-btn--primary"), "保存按钮应使用新样式");
 assert.ok(document.querySelector(".caldav-foot-btn--ghost"), "取消按钮应使用新样式");
 click(document.querySelector('[data-action="cancel"]'));
+await settle();
 assert.ok(!document.querySelector(".caldav-editor"), "弹窗应关闭");
 
 // ---- Dock 排序下拉：7 种排序选项 + active 标记 ----
@@ -489,16 +504,59 @@ assert.ok(
   "新建弹窗不应有删除按钮"
 );
 click(document.querySelector('[data-action="cancel"]'));
+await settle();
 assert.ok(!document.querySelector(".caldav-editor"), "弹窗应关闭");
 
 // ---- 页签已打开时，Dock「日历视图」应直接切回日历（不重复渲染） ----
 click(dockEl.querySelector('[data-action="cal-view"]'));
 assert.ok(tabEl.querySelector(".cal-month-grid"), "Dock 点击「日历视图」应切回月视图");
 
-// ---- 页签内设置：日历筛选浮层 → 设置弹窗 ----
+// ---- 日历筛选浮层：标题文案 + 设置入口已迁至 Dock 标题栏 ----
 click(tabEl.querySelector('[data-action="calfilter"]'));
 assert.ok(!tabEl.querySelector('[data-pop="calfilter"]').hidden, "日历筛选浮层应展开");
-click(tabEl.querySelector('[data-action="settings"]'));
+assert.strictEqual(
+  tabEl.querySelector(".caldav-cal-head")?.textContent?.trim(),
+  "日历筛选",
+  "浮层标题应为「日历筛选」"
+);
+assert.ok(
+  !tabEl.querySelector('.caldav-calfilter-pop [data-action="settings"]'),
+  "浮层内不应再有「设置」菜单项"
+);
+assert.ok(
+  tabEl.querySelector('.caldav-calfilter-pop [data-action="insert-diary"]'),
+  "「插入日记」菜单项应保留"
+);
+
+// ---- 眼睛按钮 / 整行点击：切换该日历在视图中的显示与隐藏 ----
+// 防回归：旧实现的通用 target 解析句子是 closest("[data-view],[data-action],[data-cal]")，
+// 而眼睛按钮自身不带 data-* 属性 → closest 直接跳过它命中父级 .caldav-cal-item，
+// 于是 target.classList.contains("caldav-cal-toggle") 恒为 false，点了完全静默无反应。
+const calRow0 = () => tabEl.querySelector('.caldav-cal-item[data-cal="0"]');
+const calEye0 = () => calRow0()?.querySelector(".caldav-cal-toggle");
+const seedVisible = () =>
+  [...tabEl.querySelectorAll("[data-open]")].some((el) => (el.textContent || "").includes("测试条目"));
+
+assert.ok(calRow0(), "浮层应有第 1 个日历行");
+assert.ok(seedVisible(), "初始应能看到该日历的条目");
+assert.strictEqual(calEye0()?.getAttribute("aria-label"), "隐藏此日历", "启用态眼睛按钮文案应为「隐藏此日历」");
+
+// 点眼睛 → 关闭该日历
+click(calEye0());
+assert.strictEqual(plugin.store.settings.calendars[0].enabled, false, "点眼睛应把该日历置为关闭");
+assert.ok(calRow0().classList.contains("is-off"), "关闭后该行应带 is-off");
+assert.strictEqual(calEye0()?.getAttribute("aria-label"), "显示此日历", "关闭态眼睛按钮文案应变为「显示此日历」");
+assert.ok(!seedVisible(), "关掉的日历，其条目应从视图中消失");
+
+// 点整行（名称）→ 恢复
+click(calRow0().querySelector(".caldav-cal-name"));
+assert.strictEqual(plugin.store.settings.calendars[0].enabled, true, "点整行应恢复该日历");
+assert.ok(!calRow0().classList.contains("is-off"), "恢复后 is-off 应移除");
+assert.ok(seedVisible(), "恢复后条目应重新出现");
+
+// ---- Dock 标题栏设置按钮 → 设置弹窗 ----
+assert.ok(dockEl.querySelector('[data-dock-action="settings"]'), "Dock 标题栏应有设置按钮");
+click(dockEl.querySelector('[data-dock-action="settings"]'));
 const settingsEl = document.querySelector(".caldav-settings");
 assert.ok(settingsEl, "设置弹窗应打开");
 assert.ok(settingsEl.querySelector(".caldav-section--card"), "设置弹窗应使用卡片分组");
@@ -539,6 +597,7 @@ click(ctxMenuEl.querySelector('[data-ctx="edit"]'));
 assert.ok(document.querySelector(".caldav-editor"), "右键菜单「编辑」应打开编辑弹窗");
 assert.ok(ctxMenuEl.hidden, "点击「编辑」后菜单应收起");
 click(document.querySelector('[data-action="cancel"]'));
+await settle();
 assert.ok(!document.querySelector(".caldav-editor"), "弹窗应关闭");
 // 右击 → Esc 收起
 rclick(rcTarget, 220, 180);
@@ -622,8 +681,20 @@ assert.strictEqual(
   "待办结束时间早于新的开始时间时，应顺延为开始时间 + 1 小时"
 );
 
-// ---- 卸载 ----
+// ---- 卸载：应主动关闭主窗口里已打开的「日历」自定义页签 ----
+// 思源在禁用/卸载插件时只摘掉自己接管的注册项（Dock / 顶栏 / 工具栏），不会关闭页签，
+// 于是主窗口会残留一个空白「日历」页签，且布局被写进 conf，重启后依然在。
+const openTabs = (reg.customModels || []).map((m) => m.tab);
+assert.ok(openTabs.length >= 1, "前置：主窗口应至少打开过一个日历自定义页签");
+assert.ok(openTabs.every((t) => !t.closed), "前置：页签在卸载前应处于打开状态");
 plugin.onunload();
+assert.ok(openTabs.every((t) => t.closed), "卸载插件时应关闭所有残留的「日历」页签");
+assert.ok(
+  openTabs.every((t) => (reg.closedTabs || []).includes(t.id)),
+  "关闭必须走 Tab.close()（内部 parent.removeTab → saveLayout），否则布局里仍会留下这条页签"
+);
+// uninstall 会在 onunload 之后由思源再调一次，必须幂等且不报错
+plugin.uninstall();
 
 // ---- CSS 防回归：对话框圆角在悬停时不应抖动 ----
 const builtCss = fs.readFileSync(path.resolve("dist/index.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -649,10 +720,33 @@ assert.ok(
   "主按钮 hover 必须保持白色文字，保证与加深底色对比度"
 );
 
+// ---- 日历筛选浮层：标题与菜单项字号应与其他弹窗同档，不能退回 11/12px 的小字 ----
+assert.ok(
+  /\.caldav-cal-head\s*\{[^}]*font-size:\s*14px/.test(builtCss),
+  "「日历筛选」浮层标题应为 14px（与 Dock「选择分类」弹层标题一致）"
+);
+assert.ok(
+  /\.caldav-calfilter-foot\s+\.caldav-link\s*\{[^}]*font-size:\s*13px/.test(builtCss),
+  "浮层菜单项应为 13px（原 12px 偏小）"
+);
+assert.ok(
+  /\.caldav-brand-set\s*\{[^}]*width:\s*26px/.test(builtCss),
+  "Dock 标题栏设置按钮应有稳定的点击区域"
+);
+// 手机/平板没有 :hover，眼睛按钮若只靠 hover 显形就永远看不见 —— 必须在无悬停设备上常驻
+assert.ok(
+  /@media\s*\(hover:\s*none\)\s*\{[^}]*\.caldav-cal-toggle\s*\{\s*opacity:\s*1/.test(builtCss),
+  "无悬停设备上眼睛按钮应常驻可见（否则触摸端根本发现不了这个开关）"
+);
+
 // ---- 图标防回归：宿主 base.css 有全局规则 svg{fill:currentColor}，
 //      presentation 属性 fill="none" 优先级低会被覆盖，导致 rect/圆/闭合 path 被填成实心黑块。
 //      必须用内联 style 强制描边；日历里的日期点则用内联 style 保持实心。 ----
 const builtJs = fs.readFileSync(path.resolve("dist/index.js"), "utf8");
+assert.ok(
+  builtJs.includes("getOpenedTab"),
+  "卸载清理应通过官方 getOpenedTab() 找到本插件的自定义页签（否则主窗口会残留空白「日历」页签）"
+);
 assert.ok(
   builtJs.includes('style="fill:none'),
   "图标 svg 必须用内联 style 声明 fill:none（属性形式会被思源 base.css 的 svg{fill:currentColor} 覆盖，闭合图形会变成实心黑块）"
@@ -667,7 +761,12 @@ assert.ok(
 assert.match(
   builtCss,
   /\.caldav-dock-act svg\s*\{[^}]*width:\s*20px/,
-  "Dock 操作按钮的图标画布应为 20px（按钮 38px 见方，过小会显得图标局促）"
+  "Dock 操作按钮的图标画布应为 20px（按钮高 38px，过小会显得图标局促）"
+);
+assert.match(
+  builtCss,
+  /\.caldav-dock-actions\s*\{[^}]*display:\s*grid/,
+  "Dock 按钮行必须用 grid 等分：flex:1 下「新增/排序」外面的 .caldav-dock-menu 不受按钮 max-width 约束，会吃掉剩余宽度，后三个按钮被挤到行尾"
 );
 for (const vb of ["1.5 1.5 21 21", "4.4 4.4 15.2 15.2", "2.2 2.2 19.6 19.6"]) {
   assert.ok(

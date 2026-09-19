@@ -16,6 +16,14 @@ import { parseLocalStamp, stampOfMs } from "./date";
 const HORIZON_MS = 24 * 86400000;
 /** 周期重扫间隔，兜底捕捉新同步条目 / 后台节流漏掉的触发 */
 const RESCAN_MS = 60_000;
+/**
+ * 补发宽限期：提醒时刻刚过去不久（内核启动、设置刚打开、系统休眠唤醒等场景）
+ * 也补发一次，避免「设了提醒却什么都没发生」。
+ * 更早的仍然不补，防止一启动就轰炸历史条目。
+ */
+const GRACE_MS = 5 * 60_000;
+/** fired 集合容量上限，超出后丢弃最早的记录 */
+const FIRED_CAP = 1000;
 
 export interface ReminderFire {
   (item: CalItem, anchorISO: string, alarmMin: number): void;
@@ -34,6 +42,10 @@ export class ReminderEngine {
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
   private rescan: ReturnType<typeof setInterval> | null = null;
   private now: () => number;
+  /** 已实际触发过的槽位 key（含补发），防止 rescan 把同一条重复补发 */
+  private fired = new Set<string>();
+  /** 上次打印的排程条数，仅在数量变化时打日志，避免每分钟刷屏 */
+  private lastLogged = -1;
 
   constructor(
     private getItems: () => CalItem[],
@@ -78,9 +90,10 @@ export class ReminderEngine {
       const anchorISO = stampFromMs(anchorMs, item.allDay);
       for (const a of item.alarms) {
         const fireAt = anchorMs - a.minutesBefore * 60000;
-        if (fireAt <= now + 1000) continue; // 只排未来；错过不补
-        if (fireAt > now + HORIZON_MS) continue; // 太远等 rescan 推进
+        if (fireAt < now - GRACE_MS) continue; // 过期超过宽限期：不补，避免轰炸历史条目
+        if (fireAt > now + HORIZON_MS) continue; // 太远：等 rescan 推进
         const key = `${item.uid}|${item.recurId || ""}|${a.minutesBefore}|${anchorISO}`;
+        if (this.fired.has(key)) continue; // 已提醒过（含刚补发过的），不重复
         out.push({ key, fireAt, item, anchorISO, alarmMin: a.minutesBefore });
       }
     }
@@ -102,6 +115,9 @@ export class ReminderEngine {
       const delay = Math.max(0, slot.fireAt - now);
       const timer = setTimeout(() => {
         this.timers.delete(slot.key);
+        // 落进 fired：rescan 时同一个槽位不再补发（宽限期内尤其需要）
+        this.fired.add(slot.key);
+        this.trimFired();
         try {
           this.fire(slot.item, slot.anchorISO, slot.alarmMin);
         } catch (e) {
@@ -110,13 +126,43 @@ export class ReminderEngine {
       }, delay);
       this.timers.set(slot.key, timer);
     }
+    // 仅在数量变化时打日志，便于用户在控制台确认「到底排上了没有」
+    if (want.size !== this.lastLogged) {
+      this.lastLogged = want.size;
+      console.info(
+        `[caldav] 提醒排程 ${want.size} 条（本地带提醒时间的条目 ${this.armedCount()} 个）`
+      );
+    }
+  }
+
+  /** 当前已排程的提醒条数（设置页自检用） */
+  count(): number {
+    return this.timers.size;
+  }
+
+  /** 本地「带提醒时间」的条目数：为 0 说明是数据侧没设提醒，而不是投递失败 */
+  armedCount(): number {
+    return this.getItems().filter((it) => !!it.alarms?.length && !it.deleted).length;
+  }
+
+  /** fired 集合控制容量，避免长期运行无限增长 */
+  private trimFired(): void {
+    if (this.fired.size <= FIRED_CAP) return;
+    const drop = this.fired.size - FIRED_CAP;
+    let i = 0;
+    for (const k of this.fired) {
+      this.fired.delete(k);
+      if (++i >= drop) break;
+    }
   }
 
   /** 返回条目的若干未来发生时刻（毫秒）：事件用 start，待办用 due(end) */
   private nextOccurrences(item: CalItem, fromMs: number, toMs: number): number[] {
     const anchor = item.kind === "todo" ? item.end || item.start : item.start;
-    if (!anchor || !item.start) return [];
-    if (!item.rrule) return [parseLocalStamp(anchor).getTime()];
+    if (!anchor) return [];
+    // 非重复条目直接用锚点时刻；待办只填了到期日、没有 DTSTART 时也走这里
+    // （旧实现要求 item.start 必须存在，导致「只有截止日期」的待办永远不提醒）
+    if (!item.rrule || !item.start) return [parseLocalStamp(anchor).getTime()];
     // 重复：以 start 展开，再按 start→anchor 的时差平移，得到 anchor 的实例时刻
     const delta = parseLocalStamp(anchor).getTime() - parseLocalStamp(item.start).getTime();
     return occurrencesInRange(item, fromMs - delta, toMs - delta)

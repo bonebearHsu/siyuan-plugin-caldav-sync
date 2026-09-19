@@ -10,7 +10,7 @@ Manage calendars and todos on your CalDAV server (Radicale / Nextcloud / Baikal 
 - **Full editing**: title, calendar, all-day, start/end, recurrence (day/week/month/year + interval + weekdays + end conditions), reminders, location, tags, notes, priority, status, completion
 - **Multiple calendars**: color-coded, individually toggleable, default calendar for new items
 - **Recurring events**: RRULE expansion with EXDATE support
-- **Daily note integration**: insert today's schedule & todos into the daily note
+- **Daily note integration**: insert today's schedule & todos into the daily note (only items actually due today; todos are placed by due date; the note is opened afterwards and repeated clicks update the previously inserted section instead of appending again)
 - **Two request channels**: SiYuan kernel proxy (no CORS) by default, automatic fallback to direct browser requests
 
 ## Install
@@ -62,11 +62,21 @@ If direct requests fail with CORS errors, set the channel to "SiYuan kernel prox
 - `Open Calendar & Tasks`
 - `Insert Today's Schedule into Daily Note`
 
+## Reminders
+
+- Only items **with a reminder time** (a VALARM entry, set via the editor's reminder dropdown) will notify. Items without one never fire — if nothing happens, check *Settings → Reminders* for "items with a reminder time".
+- When a reminder is due, three channels fire together: an **in-app reminder card** (visible whenever the SiYuan window is on screen), a desktop notification (best effort), and a SiYuan notification-center message (so it is still there when you come back to the window). The card also offers "Open" and "Snooze 5 min".
+- Verify the channel any time via **Settings → Reminders → Test reminder**.
+- Why desktop notifications may not show up: Electron grants notification permission silently — there is deliberately no permission dialog — and on Windows a portable SiYuan has no Start Menu shortcut, so the OS discards toasts without raising an error. In that case the in-app card is the channel you can rely on.
+- A reminder missed by more than 5 minutes is skipped (no backfill for old items); within 5 minutes it is fired once, so starting SiYuan shortly after a reminder still notifies.
+
 ## Notes
 
 - Passwords are stored in plain text in plugin data; use self-hosted / LAN servers or restricted accounts
 - Times are written as UTC in ICS; floating times are interpreted in the local timezone
-- Desktop only (Android / iOS not adapted yet)
+- Mobile (Android / iOS) supported: SiYuan has no tab bar on mobile and `openTab` is a no-op there, so the panel opens as a full-screen layer instead of a tab. Long-press an item to bring up the edit/delete menu (right-click on desktop)
+  - On phones the calendar cells show the title only (time + title do not fit); narrowing the desktop window still keeps the time
+  - Mobile WebViews block cleartext-HTTP direct requests (`Failed to fetch`); when a direct request fails at the network level the plugin falls back to the SiYuan kernel proxy automatically — unrelated to your password
 
 ## Development
 

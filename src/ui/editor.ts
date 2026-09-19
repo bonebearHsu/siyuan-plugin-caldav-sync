@@ -2,6 +2,8 @@
  * 日程 / 待办编辑弹窗（基于思源 Dialog）
  */
 import { Dialog } from "siyuan";
+import { isMobile } from "./device";
+import { adoptMobileLayer } from "./mobile-layers";
 import type { CalItem, CalKind, CategoryDef, Recurrence } from "../core/types";
 import { DEFAULT_CATEGORIES } from "../core/types";
 import { keyOf } from "../core/store";
@@ -54,14 +56,19 @@ export function openEditor(ctx: PanelCtx, preset: EditorPreset): void {
   if (kind === "todo" && isNew) it.end = undefined; // 待办默认无截止，由用户按需填写
 
   const isTodo = it.kind === "todo";
+  // 移动端竖屏（375~430px）放不下 520/560px 定宽弹窗，改为占满视口
+  const mobile = isMobile();
 
   const dialog = new Dialog({
     title: isNew ? (isTodo ? "新建待办" : "新建日程") : "编辑" + (isTodo ? "待办" : "日程"),
     content: `<div class="caldav-editor">${editorHtml(it, cals, ctx.store.settings.categories?.length ? ctx.store.settings.categories : DEFAULT_CATEGORIES, !!ctx.store.settings.categoryMulti, isNew)}</div>`,
-    width: isTodo ? "560px" : "520px",
-    height: "86vh",
-    destroyCallback: () => {}
+    width: mobile ? "100vw" : isTodo ? "560px" : "520px",
+    height: mobile ? "100vh" : "86vh",
+    containerClassName: mobile ? "caldav-mobile-dialog" : undefined
   });
+  // 移动端：编辑弹窗是「叠在当前页面之上」的一层，同时只留一个。
+  // 层的收放一律以 DOM 为准（见 ui/mobile-layers.ts），关闭时不需要再回账。
+  adoptMobileLayer(dialog, "sheet");
   const el = dialog.element.querySelector(".caldav-editor") as HTMLElement;
   enableDialogResize(dialog);
   bindEvents(ctx, dialog, el, it, isNew);

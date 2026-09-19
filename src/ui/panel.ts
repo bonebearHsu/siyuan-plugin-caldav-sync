@@ -12,6 +12,7 @@ import { DEFAULT_CATEGORIES } from "../core/types";
 import { occurrencesInRange } from "../core/ics";
 import { parseLocalStamp, stampOfMs, todayStamp, startOfWeek, addDays, isDateOnly, fmtTime, fmtDateCn, diffDays } from "../core/date";
 import { icons } from "./icons";
+import { isMobile } from "./device";
 import { openEditor } from "./editor";
 import { openSettingsDialog } from "./settings-dialog";
 import { renderMonthView } from "./view-month";
@@ -28,10 +29,13 @@ export interface PanelCtx {
   i18n: (key: string) => string;
   /** 把今日日程插入日记（由入口注入，依赖思源内核 API） */
   insertTodayToDiary: () => Promise<string>;
+  /** 发送一条测试提醒（由入口注入，用于自检提醒投递通道） */
+  testReminder?: () => Promise<string>;
+  /** 提醒状态摘要（由入口注入，显示已排程条数与带提醒时间的条目数） */
+  reminderStatus?: () => string;
   unsaved: Set<string>; // 面板实例 key，防重复渲染
   viewMode: ViewMode;
   cursor: string; // 当前聚焦日期 YYYY-MM-DD
-  statusText: string;
   /** 排序方式：开始/结束/优先级/完成/创建/分类/标题 */
   sortMode: SortMode;
   /** 视图内导航（年视图跳月/日用），由 renderPanel 注入 */
@@ -40,6 +44,9 @@ export interface PanelCtx {
 
 export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => void; refresh: () => void } {
   root.classList.add("caldav-root");
+  // 触摸形态标记：移动端日历格子里放不下「时间 + 标题」，只留标题（见 index.css .caldav-touch）。
+  // 用类而不是媒体查询，桌面端把窗口拖窄时仍保留时间列。
+  root.classList.toggle("caldav-touch", isMobile());
   root.innerHTML = `
 <div class="caldav-app caldav-app--flat">
   <main class="caldav-main">
@@ -59,20 +66,19 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
         </div>
       </div>
       <div class="caldav-toolbar-right">
-        <button class="caldav-icon-btn" data-action="toggle-view" title="切换到任务视图" aria-label="切换到任务视图"></button>
+        <button class="caldav-btn caldav-btn-primary" data-action="new-event">${icons.plus} 日程</button>
+        <button class="caldav-btn" data-action="new-todo">${icons.plus} 待办</button>
         <div class="caldav-calfilter-wrap">
           <button class="caldav-icon-btn" data-action="calfilter" title="日历筛选">${icons.layers}</button>
           <div class="caldav-calfilter-pop" data-pop="calfilter" hidden>
-            <div class="caldav-cal-head">日历</div>
+            <div class="caldav-cal-head">日历筛选</div>
             <div class="caldav-cal-list"></div>
             <div class="caldav-calfilter-foot">
-              <button class="caldav-link" data-action="settings">设置</button>
               <button class="caldav-link" data-action="insert-diary">把今日日程与待办插入日记</button>
             </div>
           </div>
         </div>
-        <button class="caldav-btn caldav-btn-primary" data-action="new-event">${icons.plus} 日程</button>
-        <button class="caldav-btn" data-action="new-todo">${icons.plus} 待办</button>
+        <button class="caldav-icon-btn" data-action="toggle-view" title="切换到任务视图" aria-label="切换到任务视图"></button>
       </div>
     </header>
     <div class="caldav-view"></div>
@@ -105,13 +111,30 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     calListEl.innerHTML = cals
       .map(
         (c, i) => `
-      <div class="caldav-cal-item ${c.enabled ? "" : "is-off"}" data-cal="${i}">
+      <div class="caldav-cal-item ${c.enabled ? "" : "is-off"}" data-cal="${i}"
+           title="${c.enabled ? "点击在视图中隐藏此日历" : "点击在视图中显示此日历"}">
         <span class="caldav-cal-dot" style="background:${c.color}"></span>
         <span class="caldav-cal-name" title="${escapeAttr(c.url)}">${escapeHtml(c.displayName)}</span>
-        <button class="caldav-icon-btn caldav-cal-toggle" title="启用/禁用">${c.enabled ? icons.eye : icons.eyeOff}</button>
+        <button class="caldav-icon-btn caldav-cal-toggle" type="button"
+                aria-pressed="${c.enabled ? "true" : "false"}"
+                title="${c.enabled ? "隐藏此日历" : "显示此日历"}"
+                aria-label="${c.enabled ? "隐藏此日历" : "显示此日历"}">${c.enabled ? icons.eye : icons.eyeOff}</button>
       </div>`
       )
       .join("");
+  }
+
+  /**
+   * 切换某个日历的启用状态（眼睛按钮 / 整行点击）。
+   * 关掉后：日历视图、任务视图、Dock 列表与计数同时不再包含该日历的条目（都读 settings.calendars[].enabled）。
+   * persist() 不触发 onChange，所以这里必须自己 renderAll()。
+   */
+  function toggleCalendar(idx: number): void {
+    const cal = ctx.store.settings.calendars[idx];
+    if (!cal) return;
+    cal.enabled = !cal.enabled;
+    void ctx.store.persist();
+    renderAll();
   }
 
   function cursorTitle(): string {
@@ -214,8 +237,42 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     ctxMenu.style.top = `${top}px`;
   }
 
+  // ---- 条目菜单触发：桌面右键 / 触摸长按 ----
+  // 触摸端长按是桌面右键的等价操作。不能只靠 contextmenu：iOS 的 WKWebView 不派发
+  // contextmenu；Android WebView 长按则两者都触发，用时间戳去重避免菜单重复展开。
+  const LONG_PRESS_MS = 480;
+  const PRESS_MOVE_TOLERANCE = 10;
+  let lastLongPressAt = 0;
+  let pressTimer: ReturnType<typeof setTimeout> | null = null;
+  let pressPoint = { x: 0, y: 0 };
+  let longPressFired = false;
+
+  function clearPressTimer(): void {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }
+
+  /**
+   * 注册监听并登记撤销。
+   * 面板根元素与右键菜单都可能被复用（移动端 Dock 容器长期存活、思源会重建侧栏），
+   * 漏摘监听就会在同一元素上叠加处理器 —— 一次点击触发多次动作。
+   */
+  const offs: Array<() => void> = [];
+  const on = <K extends keyof HTMLElementEventMap>(
+    el: HTMLElement,
+    type: K,
+    fn: (ev: HTMLElementEventMap[K]) => void,
+    opts?: boolean | AddEventListenerOptions
+  ): void => {
+    el.addEventListener(type, fn as EventListener, opts);
+    offs.push(() => el.removeEventListener(type, fn as EventListener, opts));
+  };
+  const offAll = (): void => offs.splice(0).forEach((off) => off());
+
   // 在条目上右键 → 展开菜单（阻止思源原生右键菜单）
-  app.addEventListener("contextmenu", (ev) => {
+  on(app, "contextmenu", (ev) => {
     const t = ev.target as HTMLElement;
     const openEl = t.closest("[data-open]") as HTMLElement | null;
     if (!openEl || !app.contains(openEl)) {
@@ -226,10 +283,62 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     if (!ctx.store.get(key)) return;
     ev.preventDefault();
     ev.stopPropagation();
+    // 触摸端长按已展开过菜单，这里只挡掉系统菜单
+    if (Date.now() - lastLongPressAt < 800) return;
     showCtxMenu(key, ev.clientX, ev.clientY);
   });
 
-  ctxMenu.addEventListener("click", (ev) => {
+  // 触摸长按 → 等同于右键（命中区与右键一致：带 data-open 且 store 中存在的条目）
+  on(app, "pointerdown", (ev) => {
+    if (ev.pointerType !== "touch") return;
+    const openEl = (ev.target as HTMLElement).closest("[data-open]") as HTMLElement | null;
+    if (!openEl || !app.contains(openEl)) return;
+    const key = openEl.dataset.open!;
+    if (!ctx.store.get(key)) return;
+    pressPoint = { x: ev.clientX, y: ev.clientY };
+    longPressFired = false;
+    clearPressTimer();
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      longPressFired = true;
+      lastLongPressAt = Date.now();
+      showCtxMenu(key, pressPoint.x, pressPoint.y);
+    }, LONG_PRESS_MS);
+  });
+
+  // 手指移动超过阈值视为滚动，取消长按
+  on(app, "pointermove", (ev) => {
+    if (!pressTimer || ev.pointerType !== "touch") return;
+    if (
+      Math.abs(ev.clientX - pressPoint.x) > PRESS_MOVE_TOLERANCE ||
+      Math.abs(ev.clientY - pressPoint.y) > PRESS_MOVE_TOLERANCE
+    ) {
+      clearPressTimer();
+    }
+  });
+
+  on(app, "pointerup", (ev) => {
+    if (ev.pointerType !== "touch") return;
+    clearPressTimer();
+  });
+
+  on(app, "pointercancel", clearPressTimer);
+
+  // 长按已弹菜单时吞掉随之而来的 click —— pointerup 的 preventDefault 挡不住 click，
+  // 不拦的话手指抬起会顺带触发条目的「打开编辑弹窗」。用捕获阶段抢在条目自身处理之前。
+  on(
+    app,
+    "click",
+    (ev) => {
+      if (!longPressFired) return;
+      longPressFired = false;
+      ev.preventDefault();
+      ev.stopPropagation();
+    },
+    true
+  );
+
+  on(ctxMenu, "click", (ev) => {
     const btn = (ev.target as HTMLElement).closest("[data-ctx]") as HTMLElement | null;
     if (!btn || !ctxMenuKey) return;
     const key = ctxMenuKey;
@@ -289,7 +398,7 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
   };
 
   // ---- 事件委托 ----
-  app.addEventListener("click", (ev) => {
+  on(app, "click", (ev) => {
     const t0 = ev.target as HTMLElement;
 
     // 待办快速勾选
@@ -305,6 +414,18 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     if (openEl && app.contains(openEl)) {
       const item = ctx.store.get(openEl.dataset.open!);
       if (item) openEditor(ctx, { item });
+      return;
+    }
+
+    // 日历启用/禁用（眼睛按钮，或点击整行）。
+    // ⚠️ 必须放在下面那句通用 target 解析**之前**：眼睛按钮自身不带 data-* 属性，
+    // closest("[data-view],[data-action],[data-cal]") 会跳过它直接命中父级 .caldav-cal-item，
+    // 于是后面那句 target.classList.contains("caldav-cal-toggle") 永远为 false —— 这正是
+    // 「点了眼睛没任何反应」的原因（旧实现在此处静默失效）。
+    const calItem = t0.closest(".caldav-cal-item") as HTMLElement | null;
+    if (calItem && app.contains(calItem) && calItem.dataset.cal !== undefined) {
+      toggleCalendar(+calItem.dataset.cal);
+      ev.stopPropagation();
       return;
     }
 
@@ -342,9 +463,8 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
       return;
     }
     if (action === "insert-diary") {
-      void ctx.insertTodayToDiary().then((msg) => {
-        ctx.statusText = msg;
-      });
+      // 反馈与「打开日记页签」都在入口侧完成（含失败提示），这里不重复处理
+      void ctx.insertTodayToDiary();
       return;
     }
     if (action === "new-event" || action === "new-todo") {
@@ -356,14 +476,6 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     if (action === "calfilter") {
       calfilterPop.hidden = !calfilterPop.hidden;
       return;
-    }
-    if (target.dataset.cal !== undefined) {
-      if (target.classList.contains("caldav-cal-toggle")) {
-        const cal = ctx.store.settings.calendars[+target.dataset.cal];
-        cal.enabled = !cal.enabled;
-        void ctx.store.persist();
-        renderAll();
-      }
     }
   });
 
@@ -396,6 +508,8 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
   return {
     destroy() {
       destroyed = true;
+      // 摘掉挂在根元素/右键菜单上的监听（它们可能被复用，漏摘会叠加处理器）
+      offAll();
       document.removeEventListener("click", onDocClick, true);
       document.removeEventListener("keydown", onKeydown, true);
       document.removeEventListener("scroll", onReflow, true);
@@ -403,7 +517,12 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
       unsub();
       root.innerHTML = "";
     },
-    refresh: renderAll
+    refresh() {
+      // 已销毁的面板可能还被人拿着引用（旧弹层、旧页签），刷新要变成空操作：
+      // 让它去动已被清空的 DOM 只会徒增抛错风险（视图切换就调它）。
+      if (destroyed) return;
+      renderAll();
+    }
   };
 }
 
@@ -415,8 +534,9 @@ export function notifyViewChange(mode: ViewMode): void {
 }
 
 /**
- * Dock 面板：标题「日历任务管理」+ 一行 5 个按钮。
+ * Dock 面板：标题「日历任务管理」（右侧带设置图标按钮）+ 一行 5 个按钮。
  * 新增 / 排序 为下拉菜单；日历视图 / 任务视图 打开主窗口页签；刷新 触发重新同步。
+ * 设置入口从主面板「日历筛选」浮层迁到这里 —— 浮层只留过滤相关的动作，职责更单一。
  */
 type DockFilter =
   | "today" | "tomorrow" | "next7" | "thisweek" | "future"
@@ -455,12 +575,17 @@ export interface DockPanelOpts {
   onToggleDone: (item: CalItem) => void;
 }
 
-export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destroy: () => void } {
+export function renderDockPanel(
+  root: HTMLElement,
+  opts: DockPanelOpts
+): { refresh: () => void; destroy: () => void } {
   root.classList.add("caldav-dock");
+  root.classList.toggle("caldav-touch", isMobile());
   root.innerHTML = `
 <div class="caldav-dock-brand">
   <span class="caldav-brand-icon">${icons.calendar}</span>
   <span class="caldav-brand-title">日历任务管理</span>
+  <button class="caldav-brand-set" data-dock-action="settings" title="设置" aria-label="设置">${icons.gear}</button>
 </div>
 <div class="caldav-dock-actions">
   <div class="caldav-dock-menu" data-menu="add">
@@ -906,8 +1031,19 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
       .join("") + nodateHint;
   }
 
-  root.addEventListener("click", (ev) => {
+  // ⚠️ 必须具名：移动端这个容器元素是**长期存活**的（思源的 removeMobilePluginDock
+  // 只清 innerHTML，元素本身留着；侧栏重建也只搬运它），重挂时若不摘掉旧监听，
+  // 就会在同一元素上叠加多个处理器 —— 一次点击触发多次动作，
+  // 症状就是「点一次设置弹出两个设置窗口」（且随每次插件热更新越叠越多）。
+  const onRootClick = (ev: MouseEvent) => {
     const t = ev.target as HTMLElement;
+
+    // 标题栏右侧设置图标按钮
+    const brandSet = t.closest("[data-dock-action='settings']");
+    if (brandSet && root.contains(brandSet)) {
+      opts.onSettings();
+      return;
+    }
 
     // 「另有 N 条无日期待办」提示：直接切到无日期筛选
     const nodateBtn = t.closest("[data-dock-action='show-nodate']");
@@ -1009,17 +1145,19 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
       togglePop(toggle.dataset.toggle!);
       return;
     }
-  });
+  };
+  root.addEventListener("click", onRootClick);
 
   // 筛选下拉已改为自定义控件（原生 <select> 的 change 监听随之移除）
 
-  root.addEventListener("input", (ev) => {
+  const onRootInput = (ev: Event) => {
     const target = ev.target as HTMLElement;
     if (target.dataset.dock === "search") {
       dockSearch = (target as HTMLInputElement).value;
       renderDockList();
     }
-  });
+  };
+  root.addEventListener("input", onRootInput);
 
   const onDocClick = (ev: MouseEvent) => {
     const t = ev.target as HTMLElement;
@@ -1042,8 +1180,20 @@ export function renderDockPanel(root: HTMLElement, opts: DockPanelOpts): { destr
   renderDockList();
 
   return {
+    /** 只重画数据，不重建 DOM —— 移动端侧栏复用面板时用（见 index.ts: mountDock） */
+    refresh() {
+      if (destroyed) return;
+      renderStatus();
+      renderSortActive();
+      syncDockFilterLabel();
+      renderDockList();
+    },
     destroy() {
       destroyed = true;
+      // 先摘掉挂在容器自身上的监听：容器可能被复用（移动端 Dock），
+      // 漏掉就会叠加处理器，一次点击触发多次（见 onRootClick 处说明）。
+      root.removeEventListener("click", onRootClick);
+      root.removeEventListener("input", onRootInput);
       document.removeEventListener("click", onDocClick, true);
       listScrollEl?.removeEventListener("scroll", onScrollClose);
       window.removeEventListener("resize", onScrollClose);

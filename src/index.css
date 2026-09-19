@@ -89,12 +89,14 @@
   min-height: 0;
 }
 
+/* 浮层标题：与 Dock「选择分类」弹层标题同一档（14px / 600）。
+   11px + uppercase + 字距是旧左侧栏子标题的规格，放在浮层里比相邻弹窗明显小一号。 */
 .caldav-cal-head {
-  font-size: 11px;
-  color: var(--caldav-text-2);
-  padding: 0 6px 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--caldav-text);
+  padding: 2px 4px 8px;
+  border-bottom: 1px solid var(--caldav-border);
 }
 
 .caldav-cal-item {
@@ -103,11 +105,14 @@
   gap: 7px;
   padding: 5px 6px;
   border-radius: 6px;
-  cursor: default;
+  /* 整行可点：切换该日历在视图中的显示 / 隐藏（与右侧眼睛按钮同一动作，
+     触摸端尤其需要 —— 26~34px 的图标太小，整行更好点） */
+  cursor: pointer;
 }
 
 .caldav-cal-item:hover { background: var(--caldav-bg-3); }
 .caldav-cal-item.is-off .caldav-cal-name { opacity: 0.45; text-decoration: line-through; }
+.caldav-cal-item.is-off .caldav-cal-dot { opacity: 0.35; }
 
 .caldav-cal-dot {
   width: 9px;
@@ -124,8 +129,16 @@
   font-size: 12.5px;
 }
 
+/* 眼睛按钮：静态时隐去，避免与色点/名称抢注意力；悬停或已关闭时常驻显示。
+   已关闭必须常驻 —— 否则关掉后按钮自己消失，用户找不到恢复入口。 */
 .caldav-cal-toggle { opacity: 0; }
 .caldav-cal-item:hover .caldav-cal-toggle { opacity: 1; }
+.caldav-cal-item.is-off .caldav-cal-toggle { opacity: 1; color: var(--caldav-text-2); }
+
+/* 无悬停能力的设备（手机/平板）：没有 :hover 可触发，按钮会一直隐形 —— 直接常驻 */
+@media (hover: none) {
+  .caldav-cal-toggle { opacity: 1; }
+}
 
 .caldav-cal-empty {
   color: var(--caldav-text-2);
@@ -1553,6 +1566,13 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 }
 .caldav-flex { flex: 1; }
 
+/* 页脚按钮：一律不参与收缩、不换行。
+   窄屏时页脚里的说明文字会把按钮挤窄，按钮内的「图标 + 文字」就断成两行（截图里的「取消」「保存」）。 */
+.caldav-editor-foot .caldav-foot-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 /* 错误提示：位于页脚按钮行左侧空白处，无内容时不占位 */
 .caldav-editor-error {
   flex: 1 1 auto;
@@ -1994,6 +2014,34 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   font-size: 14px;
 }
 
+/* 标题占满剩余宽度，把设置按钮顶到最右 */
+.caldav-dock-brand .caldav-brand-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 标题栏右侧设置图标按钮（原「日历筛选」浮层里的「设置」菜单项迁到这里） */
+.caldav-brand-set {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--caldav-text-2);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+
+.caldav-brand-set:hover { background: var(--caldav-bg-3); color: var(--caldav-text); }
+.caldav-brand-set svg { width: 16px; height: 16px; }
+
 .caldav-dock-nav {
   display: flex;
   flex-direction: column;
@@ -2123,31 +2171,41 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 .caldav-calfilter-pop[hidden] { display: none; }
 .caldav-calfilter-foot {
   border-top: 1px solid var(--caldav-border);
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
-.caldav-calfilter-foot .caldav-link { font-size: 12px; text-align: left; }
+/* 菜单项：字号与主面板其它菜单/正文同档（13px），并补足可点区域与悬停反馈 ——
+   原来 12px 的纯文字链接，形态更像脚注而不像菜单项 */
+.caldav-calfilter-foot .caldav-link {
+  font-size: 13px;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 6px;
+}
+.caldav-calfilter-foot .caldav-link:hover { background: var(--caldav-bg-3); }
 
-/* ===== Dock：标题 + 一行 5 个按钮 ===== */
+/* ===== Dock：标题 + 一行 5 个按钮 =====
+   用 grid 等分，不要用 flex:1。「新增 / 排序」是包着下拉菜单的
+   .caldav-dock-menu，它不受按钮 max-width 的约束，在 flex 布局下会把剩余
+   宽度全部吃掉，后面三个按钮被挤到行尾 —— 手机上五个按钮疏密不均就是这个
+   原因。grid 的轨道彼此独立，五项天然等宽等距。 */
 .caldav-dock-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
-.caldav-dock-menu { position: relative; flex: 1; }
-.caldav-dock-actions > .caldav-dock-act { flex: 1; }
+.caldav-dock-menu { position: relative; display: flex; }
 
 .caldav-dock-act {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  max-width: 38px;
-  margin: 0 auto;
+  height: 38px;
   padding: 0;
   border: 1px solid var(--caldav-border);
   border-radius: 10px;
@@ -2158,7 +2216,7 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   transition: background .15s ease, color .15s ease, border-color .15s ease,
     transform .15s ease, box-shadow .15s ease;
 }
-/* 画布尺寸：与各图标收紧后的 viewBox 配合，让图形占满按钮内框（按钮 38px 见方） */
+/* 画布尺寸：与各图标收紧后的 viewBox 配合，让图形占满按钮内框（按钮高 38px、宽度随栏宽等分） */
 .caldav-dock-act svg { width: 20px; height: 20px; }
 .caldav-dock-act:hover {
   background: var(--caldav-bg-3);
@@ -2724,3 +2782,310 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   color: var(--caldav-danger, #d23f31);
 }
 .caldav-ctxmenu-err[hidden] { display: none; }
+
+/* ============================================================
+   移动端（触摸 / 窄屏）
+   思源的 addTab / openTab 在移动端是空实现（app/src/plugin/API.ts 里
+   openTab 直接 return），移动端也没有页签栏，所以日历与任务视图改由
+   全屏 Dialog 承载（见 index.ts 的 openMobilePanel）。这里负责弹层尺寸、
+   触摸命中区与窄屏布局。
+   ============================================================ */
+
+/* ---- 全屏承载：容器铺满视口 ---- */
+.caldav-mobile-dialog .b3-dialog__container {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+}
+
+/* 内容区撑满。__body 是思源现行类名，__content 为旧名兼容 */
+.caldav-mobile-dialog .b3-dialog__body,
+.caldav-mobile-dialog .b3-dialog__content {
+  padding: 0 !important;
+  margin: 0 !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+}
+
+.caldav-mobile-dialog .b3-dialog__body > .caldav-editor,
+.caldav-mobile-dialog .b3-dialog__content > .caldav-editor,
+.caldav-mobile-dialog .b3-dialog__body > .caldav-settings,
+.caldav-mobile-dialog .b3-dialog__content > .caldav-settings,
+.caldav-mobile-dialog .b3-dialog__body > .caldav-catmgr,
+.caldav-mobile-dialog .b3-dialog__content > .caldav-catmgr,
+.caldav-mobile-dialog .b3-dialog__body > .caldav-mobile-host,
+.caldav-mobile-dialog .b3-dialog__content > .caldav-mobile-host {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 承载容器（同时带 .caldav-root）：用 flex 撑满，覆盖 .caldav-root 的 height:100% */
+.caldav-mobile-dialog .caldav-root.caldav-mobile-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+}
+
+/* 移动端标题栏：右侧给思源自带的关闭按钮让位 */
+.caldav-mobile-dialog .b3-dialog__header {
+  padding: 9px 46px 9px 14px !important;
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
+/* 触摸端不挂缩放手柄（enableDialogResize 已提前返回，这里兜底） */
+.caldav-mobile-dialog .caldav-resize { display: none !important; }
+
+/* ---- 触摸命中区 ---- */
+/* 条目禁掉文字选择与系统长按呼出，避免与我们的长按菜单抢手势 */
+.caldav-root [data-open] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---- 触摸形态：单元格窄，时间与标题挤在一格里谁也看不清 —— 只留标题 ----
+   .caldav-touch 由 renderPanel / renderDockPanel 按 isMobile() 挂上，
+   不用媒体查询是为了不影响「桌面端把窗口拖窄」的用法。
+   再叠一条 .caldav-mobile-dialog（移动端 Dialog 的容器类）：万一某个页面
+   不是走当时那份 isMobile() 判定渲染的，只要它落在移动端全屏弹层里也照样隐藏，
+   不会再把时间挤回来。 */
+.caldav-touch .cal-chip-time,
+.caldav-mobile-dialog .cal-chip-time { display: none; }
+.caldav-touch .cal-wk-block-time,
+.caldav-mobile-dialog .cal-wk-block-time { display: none; }
+
+/* Dock 工具栏在触摸端整体放大一档：命中区更友好，宽高比也更协调 */
+.caldav-touch .caldav-dock-actions { gap: 8px; }
+.caldav-touch .caldav-dock-act { height: 42px; }
+.caldav-touch .caldav-dock-act svg { width: 22px; height: 22px; }
+
+/* ---- 窄屏布局 ---- */
+@media (max-width: 768px) {
+  /* 工具栏改多行：① 导航 + 日期标题 ② 动作按钮组（整行右对齐）③ 年/月/周/日 */
+  .caldav-toolbar {
+    position: relative;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .caldav-toolbar-left { flex: 1 1 auto; min-width: 0; }
+  /* 动作按钮组换行后必须占满整行才能右对齐：
+     原先 flex:0 1 auto 时宽高收缩到内容宽，组内 justify-content:flex-end 无处生效，
+     看上去始终是左对齐。 */
+  .caldav-toolbar-right {
+    order: 1;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .caldav-toolbar-center { order: 2; flex: 1 1 100%; }
+  /* 「日历筛选」浮层改由工具栏定位并铺满整行。
+     原先是挂在筛选按钮的 wrap 上 right:0，按钮靠左时会向左侧溢出、被弹层容器裁掉，
+     只剩右半边（就是截图里那个只看得见眼睛图标的窄条）。 */
+  .caldav-calfilter-wrap { position: static; }
+  .caldav-calfilter-pop {
+    top: 100%;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    margin-top: 4px;
+  }
+  /* 页脚：说明文字独占一行，按钮整组落到下一行右对齐 */
+  .caldav-editor-foot { flex-wrap: wrap; }
+  .caldav-editor-foot .caldav-set-hint { flex: 1 1 100%; }
+  .caldav-cursor-title {
+    font-size: 14px;
+    margin-left: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 视图切换段控件平分整行，触摸命中更大 */
+  .caldav-seg { display: flex; width: 100%; }
+  .caldav-seg-btn { flex: 1 1 0; padding: 8px 0; }
+  /* 触摸端按钮不低于 36px 命中高度 */
+  .caldav-btn, .caldav-icon-btn { min-height: 36px; }
+
+  /* 月视图单元格：窄屏收紧内边距与字号，保证 7 列仍可读 */
+  .cal-month-cell { padding: 3px; gap: 1px; }
+  .cal-month-weeklabel { padding: 4px 3px; font-size: 10.5px; }
+}
+
+@media (max-width: 480px) {
+  .caldav-toolbar-right .caldav-btn { padding: 7px 10px; }
+  .cal-month-weeklabel { font-size: 10px; }
+}
+
+/* 移动端 Dock 抽屉：面板宽度跟随抽屉 */
+.caldav-dock { width: 100%; }
+
+/* ===== 到点提醒卡片 =====
+ * 卡片挂在 document.body 上（避免被页签容器 overflow 裁剪、切走视图也不消失），
+ * 因此取不到 .caldav-root 里定义的局部变量，需要在这里自带一份主题变量映射。 */
+.caldav-reminder-layer {
+  --caldav-accent: var(--b3-theme-primary, #3575f0);
+  --caldav-text: var(--b3-theme-on-background, #1f2329);
+  --caldav-text-2: var(--b3-theme-on-surface, #646a73);
+  --caldav-border: var(--b3-border-color, #e4e7ed);
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(380px, calc(100vw - 28px));
+  /* 只有卡片拦事件，层本身不拦，避免遮挡思源自身界面 */
+  pointer-events: none;
+}
+
+.caldav-reminder-card {
+  pointer-events: auto;
+  box-sizing: border-box;
+  width: min(380px, calc(100vw - 28px));
+  padding: 12px 14px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  background: var(--b3-theme-surface, #fff);
+  color: var(--caldav-text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.caldav-reminder-card.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.caldav-reminder-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caldav-reminder-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 8px;
+  background: var(--caldav-accent);
+  color: #fff;
+}
+
+.caldav-reminder-icon svg { width: 15px; height: 15px; }
+
+.caldav-reminder-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caldav-reminder-x {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--caldav-text-2);
+  cursor: pointer;
+}
+
+/* 透明底的 hover：用 currentColor 派生，明暗主题自动适配 */
+.caldav-reminder-x:hover,
+.caldav-reminder-act:hover {
+  background: color-mix(in srgb, var(--caldav-text) 10%, transparent);
+}
+
+.caldav-reminder-body {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--caldav-text-2);
+}
+
+.caldav-reminder-acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.caldav-reminder-act {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border: 1px solid var(--caldav-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--caldav-text);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+/* 主按钮：实心 accent 底 + 白字，hover 只能加深（浅色变量配白字会不可读） */
+.caldav-reminder-act.is-primary {
+  border-color: transparent;
+  background: var(--caldav-accent);
+  color: #fff;
+}
+
+.caldav-reminder-act.is-primary:hover {
+  background: color-mix(in srgb, var(--caldav-accent) 86%, #000);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .caldav-reminder-layer {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    max-width: none;
+  }
+  .caldav-reminder-card { width: auto; }
+  /* 触摸端加大命中区 */
+  .caldav-reminder-act { padding: 8px 14px; }
+  .caldav-reminder-x { width: 30px; height: 30px; }
+}
+
+/* ===== 设置页「提醒」区块 ===== */
+.caldav-remind-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.caldav-remind-note {
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
+
+/* 设置页·请求通道提示（仅移动端渲染） */
+.caldav-net-note {
+  margin: 6px 0 0;
+  line-height: 1.6;
+}
+

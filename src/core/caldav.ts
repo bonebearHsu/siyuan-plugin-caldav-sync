@@ -2,7 +2,7 @@
  * 极简 CalDAV 客户端：发现 / 拉取 / 上传 / 删除 / sync-token 增量
  */
 import type { CalCalendar, CalItem } from "./types";
-import { httpRequest, HttpError, type HttpResult, type Channel } from "./http";
+import { httpRequest, HttpError, isNetworkLevelError, type HttpResult, type Channel } from "./http";
 import { itemsFromICS } from "./ics";
 
 export interface DavAuth {
@@ -307,6 +307,20 @@ export async function deleteItem(item: CalItem, channel: Channel, auth: DavAuth)
   }
 }
 
+/**
+ * 把网络级失败翻译成用户能照着做的提示。
+ * 「Failed to fetch」是浏览器在请求根本没发出去时的笼统报错，
+ * 与密码无关（密码错会返回 401）——手机端多半是 WebView 拦了明文 HTTP / 跨域。
+ */
+export function describeNetworkError(e: unknown, channel: Channel): string {
+  const raw = e instanceof Error ? e.message : String(e ?? "");
+  if (!isNetworkLevelError(e)) return raw;
+  if (channel === "direct") {
+    return `请求未能到达服务器（${raw}）——浏览器直连被拦截（跨域或明文 HTTP），请把「请求通道」改为「自动」或「仅思源内核代理」后重试`;
+  }
+  return `请求未能到达服务器（${raw}）——请检查服务器地址、端口与网络连通性`;
+}
+
 /** 测试连接：PROPFIND 根集合 */
 export async function testConnection(serverUrl: string, channel: Channel, auth: DavAuth): Promise<{ ok: boolean; message: string }> {
   try {
@@ -322,7 +336,7 @@ export async function testConnection(serverUrl: string, channel: Channel, auth: 
     if (res.status >= 400) return { ok: false, message: `服务器返回 HTTP ${res.status}` };
     return { ok: true, message: `连接成功（${res.via === "proxy" ? "内核代理" : "直连"}，${res.elapsedMs}ms）` };
   } catch (e: any) {
-    return { ok: false, message: "连接失败: " + (e?.message || String(e)) };
+    return { ok: false, message: "连接失败: " + describeNetworkError(e, channel) };
   }
 }
 

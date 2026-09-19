@@ -1,28 +1,86 @@
 /**
  * 设置面板：服务器参数 / 测试连接 / 发现日历 / 同步策略
  */
-import { Dialog } from "siyuan";
+import { Dialog, showMessage } from "siyuan";
+import { isMobile } from "./device";
 import type { CalCalendar } from "../core/types";
-import { testConnection, discoverCalendars } from "../core/caldav";
+import { testConnection, discoverCalendars, describeNetworkError } from "../core/caldav";
 import type { PanelCtx } from "./panel";
 import { escape } from "./view-common";
 import { enableDialogResize } from "./dialog-resize";
 import { icons } from "./icons";
+import { adoptMobileLayer, isDialogAlive } from "./mobile-layers";
+
+/**
+ * 当前打开的设置弹层（单例）。
+ *
+ * 设置是「只该有一个」的窗口：同一个入口若因任何原因被重复触发
+ * （曾出现过 Dock 容器被重复挂载 → 同一元素上叠加两个点击处理器 → 一次点击触发两次），
+ * 就会弹出两个一模一样的设置窗口，关一个还剩一个 —— 用户得关两次。
+ * 这里做单例收口，重复触发只是把焦点交回已有窗口。
+ */
+let activeSettings: Dialog | null = null;
 
 export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
   return new Promise((resolve) => {
+    if (activeSettings && isDialogAlive(activeSettings)) {
+      activeSettings.element.querySelector<HTMLElement>("input, button, select")?.focus({ preventScroll: true });
+      resolve();
+      return;
+    }
     const s = ctx.store.settings;
+    // 移动端竖屏放不下 640px 定宽弹窗，改为占满视口
+    const mobile = isMobile();
     const dialog = new Dialog({
       title: "CalDAV 同步设置",
-      content: `<div class="caldav-settings">${settingsHtml(s)}</div>`,
-      width: "640px",
-      height: "86vh"
+      content: `<div class="caldav-settings">${settingsHtml(s, mobile)}</div>`,
+      width: mobile ? "100vw" : "640px",
+      height: mobile ? "100vh" : "86vh",
+      containerClassName: mobile ? "caldav-mobile-dialog" : undefined,
+      // 设置页被层管理收掉时（比如用户在设置页里又开了别的入口）也要 resolve，
+      // 否则调用方 `.then(…, renderAll)` 永远等不到，界面停在旧数据上。
+      destroyCallback: () => {
+        if (activeSettings === dialog) activeSettings = null;
+        resolve();
+      }
     });
+    activeSettings = dialog;
+    // 移动端：设置页是「叠在当前页面之上」的一层 —— 打开时扫掉下面的残留层，
+    // 关一次即回到原处（见 ui/mobile-layers.ts）。漏了这一步，关设置页就会
+    // 一层层往下顶，得连点好几次。
+    adoptMobileLayer(dialog, "sheet");
     const el = dialog.element.querySelector(".caldav-settings") as HTMLElement;
     enableDialogResize(dialog);
     const $ = (sel: string) => el.querySelector(sel) as HTMLInputElement;
     const msgEl = el.querySelector("[data-msg]") as HTMLElement;
     renderCalChecks(el, s.calendars);
+
+    // 提醒自检：测试按钮 + 排程状态（「带提醒时间的条目」为 0 说明是数据侧没设提醒）
+    const remindBtn = el.querySelector("[data-action='test-remind']") as HTMLButtonElement | null;
+    const remindMsg = el.querySelector("[data-remind-status]") as HTMLElement | null;
+    const refreshRemindStatus = () => {
+      if (remindMsg) remindMsg.textContent = ctx.reminderStatus?.() || "";
+    };
+    refreshRemindStatus();
+    remindBtn?.addEventListener("click", async () => {
+      if (!ctx.testReminder) {
+        if (remindMsg) remindMsg.textContent = "当前环境不支持测试提醒";
+        return;
+      }
+      remindBtn.disabled = true;
+      if (remindMsg) remindMsg.textContent = "正在发送测试提醒…";
+      try {
+        const r = await ctx.testReminder();
+        if (remindMsg) remindMsg.textContent = r;
+      } catch (e: any) {
+        if (remindMsg) remindMsg.textContent = "测试失败：" + (e?.message || e);
+      } finally {
+        remindBtn.disabled = false;
+        // 稍后回到排程状态，让「已排程 N 条」能被看到
+        setTimeout(refreshRemindStatus, 4000);
+      }
+    });
+
     if (ctx.store.secretBroken) {
       msgEl.textContent = "本地密钥已丢失，原密码无法解密，请重新输入密码后保存";
       msgEl.classList.add("is-err");
@@ -72,7 +130,7 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
         msgEl.textContent = `发现 ${r.calendars.length} 个日历，请勾选后保存`;
         msgEl.classList.add("is-ok");
       } catch (e: any) {
-        msgEl.textContent = "发现失败: " + (e?.message || e);
+        msgEl.textContent = "发现失败: " + describeNetworkError(e, channel);
         msgEl.classList.add("is-err");
       }
     });
@@ -87,6 +145,7 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
       s.conflict = $("select[data-s='conflict']").value as any;
       s.pastDays = Math.max(7, +$("input[data-s='past']").value || 90);
       s.futureDays = Math.max(30, +$("input[data-s='future']").value || 370);
+      const wasRemindOn = s.enableReminders;
       s.enableReminders = ($("input[data-s='reminders']") as HTMLInputElement).checked;
       // 勾选的日历
       el.querySelectorAll<HTMLElement>(".caldav-set-cal").forEach((row) => {
@@ -102,6 +161,16 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
       ctx.sync.startAutoSync();
       dialog.destroy();
       resolve();
+      // 首次开启提醒：立刻发一条测试提醒，让用户当场看到效果（同时验证投递通道）
+      // 注意桌面端 Electron 不会有系统授权弹窗，这一点已写在设置页说明里。
+      if (s.enableReminders) {
+        if (!wasRemindOn) {
+          void ctx.testReminder?.();
+          showMessage("提醒已开启，并已发送一条测试提醒", 6000, "info");
+        } else {
+          showMessage("提醒设置已保存", 4000, "info");
+        }
+      }
     });
     el.querySelector("[data-action='cancel']")?.addEventListener("click", () => {
       dialog.destroy();
@@ -110,7 +179,7 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
   });
 }
 
-function settingsHtml(s: PanelCtx["store"]["settings"]): string {
+function settingsHtml(s: PanelCtx["store"]["settings"], mobile: boolean): string {
   return `
 <div class="caldav-settings-form">
   <div class="caldav-section caldav-section--card">
@@ -146,6 +215,12 @@ function settingsHtml(s: PanelCtx["store"]["settings"]): string {
         </div>
       </div>
     </div>
+    ${
+      mobile
+        ? `<p class="caldav-set-hint caldav-net-note">移动端请保持「自动」：手机 WebView 会拦截明文 HTTP 的浏览器直连（报 Failed to fetch），
+      直连失败时插件会自动改走内核代理。</p>`
+        : ""
+    }
     <div class="caldav-actions-row">
       <button class="caldav-foot-btn caldav-foot-btn--ghost" data-action="test">${icons.check} 测试连接</button>
       <button class="caldav-foot-btn caldav-foot-btn--primary" data-action="discover">${icons.calendar} 发现日历</button>
@@ -192,8 +267,17 @@ function settingsHtml(s: PanelCtx["store"]["settings"]): string {
     <div class="caldav-section-title"><span class="caldav-section-icon">${icons.bell}</span>提醒</div>
     <label class="caldav-check-row">
       <input type="checkbox" data-s="reminders" ${s.enableReminders ? "checked" : ""}/>
-      <span>启用提醒通知（仅对设置了提醒时间的日程/待办生效；思源在托盘运行时到点弹出系统通知并响铃）</span>
+      <span>启用提醒通知（仅对设置了提醒时间的日程/待办生效；过点 5 分钟内仍会补发一次）</span>
     </label>
+    <div class="caldav-remind-row">
+      <button class="caldav-btn" type="button" data-action="test-remind">${icons.bell} 测试提醒</button>
+      <span class="caldav-set-hint" data-remind-status></span>
+    </div>
+    <p class="caldav-set-hint caldav-remind-note">
+      到点提醒以「应用内提醒卡片」为准。系统通知能否弹出取决于运行环境：桌面端 Electron
+      不提供授权窗口（不会弹窗，内核默认放行），Windows 便携版思源还会因缺少开始菜单快捷方式
+      被系统丢弃系统通知 —— 两者都属于已知限制，不影响应用内提醒卡片。
+    </p>
   </div>
 </div>
 

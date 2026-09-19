@@ -2,11 +2,14 @@
  * 为思源 Dialog 增加右下角缩放手柄（思源原生 dialog 不带缩放）
  */
 import type { Dialog } from "siyuan";
+import { isMobile } from "./device";
 
 export function enableDialogResize(dialog: Dialog): void {
   const root = dialog.element as HTMLElement;
   // 标记类：供 CSS 压缩标题栏高度、消除内容区多余留白
   root.classList.add("caldav-dialog");
+  // 触摸端不挂缩放手柄：没有鼠标拖拽，容器尺寸已由移动端 CSS 固定为满视口
+  if (isMobile()) return;
   const container = (root.querySelector(".b3-dialog__container") ||
     root.firstElementChild) as HTMLElement | null;
   if (!container) return;
