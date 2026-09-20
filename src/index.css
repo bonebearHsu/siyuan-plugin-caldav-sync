@@ -471,11 +471,21 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* 唯一纵向滚动容器：滚动条落在最外层右侧，内部三区(表头/全天/网格)的
+     网格列宽始终相等(=总宽-48px gutter)，分隔竖线上下对齐。 */
+  overflow-y: auto;
+  position: relative;
 }
 
 .cal-wk-header {
   display: flex;
   border-bottom: 1px solid var(--caldav-border);
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--caldav-bg, #fff);
+  height: 44px;
+  flex: 0 0 44px;
 }
 
 .cal-wk-gutterhead { flex: 0 0 48px; }
@@ -510,9 +520,13 @@
   border-bottom: 1px solid var(--caldav-border);
   min-height: 30px;
   max-height: 96px;
-  overflow-y: auto;
-  /* 与下方时间网格同步预留滚动条槽，避免滚动条出现/不出现导致列宽跳变、分隔线错位 */
-  scrollbar-gutter: stable;
+  /* 不独立滚动：避免内部滚动条挤窄列宽、与下方网格分隔线错位。
+     内容超出 max-height 时裁切（全天事件通常很少）。 */
+  overflow: hidden;
+  position: sticky;
+  top: 44px;
+  z-index: 5;
+  background: var(--caldav-bg, #fff);
 }
 
 .cal-wk-allday-label {
@@ -539,21 +553,28 @@
 .cal-wk-scroll {
   flex: 1;
   display: flex;
-  overflow-y: auto;
   min-height: 0;
-  /* 预留滚动条槽，确保时间网格与上方全天事件区的列宽始终一致、分隔线上下对齐 */
-  scrollbar-gutter: stable;
+  /* 不再独立滚动，由外层 .cal-wk 统一滚动，保证列宽一致 */
+  overflow: visible;
 }
 
 .cal-wk-gutter {
   flex: 0 0 48px;
   display: flex;
   flex-direction: column;
+  /* 时间轴与 .cal-wk-grid 同高(24*44px)，固定高度防止被 flex 拉伸压缩，
+     否则小时间距会≠44px，导致左侧时间线与事件位置对不齐 */
+  height: calc(24 * 44px);
+  flex-shrink: 0;
+  /* 含 padding 计算宽度：全天区「全天」标签有 padding，border-box 才能让它与
+     下方时间轴 gutter 同为 48px，否则宽出 8px 导致全天区整体右移、分隔线错位 */
+  box-sizing: border-box;
 }
 
 .cal-wk-hour {
   position: relative;
   border-bottom: none;
+  flex-shrink: 0;
 }
 
 .cal-wk-hour span {

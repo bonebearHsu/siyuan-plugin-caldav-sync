@@ -117,11 +117,11 @@ export function renderWeekView({ ctx, viewEl, occurrences }: ViewArgs, days: num
   </div>
 </div>`;
 
-  // 滚动到当前时间
-  const scroll = viewEl.querySelector<HTMLElement>(".cal-wk-scroll");
-  if (scroll) {
+  // 滚动到当前时间（外层 .cal-wk 是唯一纵向滚动容器）
+  const sc = viewEl.querySelector<HTMLElement>(".cal-wk");
+  if (sc) {
     const target = Math.max(0, (nowMin - 120) / 1440 * 24 * HOUR_H);
-    setTimeout(() => (scroll.scrollTop = target), 0);
+    setTimeout(() => (sc.scrollTop = target), 0);
   }
   // 日期单元格/全天区双击：弹出新增事件/任务
   viewEl.querySelectorAll<HTMLElement>(".cal-wk-col,.cal-wk-allday-cell").forEach((col) => {
