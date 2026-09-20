@@ -2,7 +2,7 @@
  * 周 / 日视图：时间轴网格（周一起始，N 列），当前时间红线，全天条
  */
 import { addDays, dateStampOfMs, isDateOnly, parseLocalStamp, startOfWeek, todayStamp } from "../core/date";
-import { calColorOf, escape, keyOfItem, occComparator, type ViewArgs } from "./view-common";
+import { calColorOf, escape, keyOfItem, occComparator, repeatMark, type ViewArgs } from "./view-common";
 import { openDateAddMenu } from "./date-add-menu";
 
 const HOUR_H = 44; // 每小时像素
@@ -89,10 +89,14 @@ export function renderWeekView({ ctx, viewEl, occurrences }: ViewArgs, days: num
           const top = (b.startMin / 1440) * 100;
           const height = Math.max(((b.endMin - b.startMin) / 1440) * 100, 4);
           const startLabel = `${String(b.startMin / 60 | 0).padStart(2, "0")}:${String(b.startMin % 60).padStart(2, "0")}`;
-          return `<div class="cal-wk-block ${b.it.kind === "todo" ? "cal-wk-block-todo" : ""}" data-open="${k}"
+          const done = b.it.kind === "todo" && b.it.percent === 100;
+          const check = b.it.kind === "todo"
+            ? `<button class="cal-chip-check" data-toggle="${k}" title="${done ? "标记未完成" : "标记完成"}">✓</button>`
+            : "";
+          return `<div class="cal-wk-block ${b.it.kind === "todo" ? "cal-wk-block-todo" : ""} ${done ? "is-done" : ""}" data-open="${k}"
             style="--cal-color:${calColorOf(ctx, b.it)};top:${top}%;height:${height}%">
+            <div class="cal-wk-block-head">${check}<div class="cal-wk-block-title">${repeatMark(b.it)}${escape(b.it.summary || "(无标题)")}</div></div>
             <div class="cal-wk-block-time">${startLabel}</div>
-            <div class="cal-wk-block-title">${b.it.rrule ? "↻ " : ""}${escape(b.it.summary || "(无标题)")}</div>
             ${b.it.location ? `<div class="cal-wk-block-loc">📍 ${escape(b.it.location)}</div>` : ""}
           </div>`;
         })

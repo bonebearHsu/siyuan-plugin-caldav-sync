@@ -621,8 +621,28 @@
 
 .cal-wk-block:hover { filter: brightness(0.96); z-index: 2; }
 
+/* 标题行：圆圈（待办）+ 标题，与月视图第一行风格一致 */
+.cal-wk-block-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cal-wk-block.is-done .cal-wk-block-title {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* 块内待办勾选样式与月视图 chip 一致：完成=实心圆+白勾，未完成=空心圆 */
+.cal-wk-block.is-done .cal-chip-check {
+  background: var(--cal-color, #64748b);
+  color: #fff;
+  border-color: var(--cal-color, #64748b);
+}
+
 .cal-wk-block-time { color: var(--caldav-text-2); font-size: 10.5px; }
-.cal-wk-block-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.cal-wk-block-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .cal-wk-block-loc { color: var(--caldav-text-2); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; }
 
 .cal-wk-nowline {
