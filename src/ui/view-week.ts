@@ -113,7 +113,7 @@ export function renderWeekView({ ctx, viewEl, occurrences }: ViewArgs, days: num
     <div class="cal-wk-gutterhead"></div>
     <div class="cal-wk-days">${dayHead}</div>
   </div>
-  <div class="cal-wk-main">
+  <div class="cal-wk-main ${hasAllDay ? "has-allday" : ""}">
     ${alldayHtml}
     <div class="cal-wk-gutter">${hours.join("")}</div>
     <div class="cal-wk-grid" style="height:${24 * HOUR_H}px">${gridCols}</div>
