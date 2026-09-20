@@ -959,10 +959,12 @@
 /* 时间选择器：原生 <input type="time"> 的弹出面板由浏览器绘制，选中项固定为系统高亮色（蓝），
    换主题也不会变，故改为自绘弹层（时 / 分两列），配色全部取自主题变量。 */
 /* 宽度沿用原来的时间输入，并给出最小宽度，避免框被压窄后数字挤在一起 */
+/* 时间框：桌面定宽 128px，但允许收缩（下限 74px 仍能完整显示 "16:00"）。
+   曾写成 flex: 0 0 128px（不可收缩），窄屏时它把整行撑破、时间框溢出到卡片外。 */
 .caldav-input-wrap--time {
   position: relative;
-  flex: 0 0 128px;
-  min-width: 0;
+  flex: 0 1 128px;
+  min-width: 74px;
 }
 /* 必须用双类选择器：.caldav-input 的 `padding: 8px 11px` 简写定义在文件更靠后的位置，
    单类的 .caldav-time-trigger 会被它整体覆盖 —— 左侧内边距失效后，
@@ -1767,8 +1769,17 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   min-width: 0;
 }
 
+/* 日期框外层原本**没有任何规则**：作为 flex 项它的自动最小尺寸 = 内容最小宽
+   （原生 type=date 的固有宽度约 125px，不受内部 input 的 min-width:0 影响），
+   于是整行无法收缩到容器宽度以内 —— 手机上时间框与两个清除按钮被挤出卡片。
+   这里显式给出 min-width:0，让它跟着容器收缩。 */
+.caldav-input-wrap--date {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .caldav-date-input {
-  flex: 1 1 130px;
+  flex: 1 1 110px;
   min-width: 0;
   padding-left: 34px;
 }
@@ -2865,7 +2876,12 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
    触摸命中区与窄屏布局。
    ============================================================ */
 
-/* ---- 全屏承载：容器铺满视口 ---- */
+/* ---- 全屏承载：容器铺满视口 ----
+   containerClassName 落在 .b3-dialog__container **自身**（见 test/stubs/siyuan-stub.cjs
+   与 editor.ts 的 containerClassName），所以必须写成复合选择器才匹配；
+   原先只写后代选择器 `.caldav-mobile-dialog .b3-dialog__container`，规则从未生效
+   （宽高靠 Dialog 的内联样式兜住了，但 border-radius 没被抹平）。 */
+.b3-dialog__container.caldav-mobile-dialog,
 .caldav-mobile-dialog .b3-dialog__container {
   width: 100vw !important;
   height: 100vh !important;
@@ -2941,6 +2957,60 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 .caldav-touch .caldav-dock-actions { gap: 8px; }
 .caldav-touch .caldav-dock-act { height: 42px; }
 .caldav-touch .caldav-dock-act svg { width: 22px; height: 22px; }
+
+/* ---- 触摸端：日期 / 时间挤进一行（含两个清除按钮） ----
+   手机弹层里「开始 / 结束」行的可用宽只有 vw-60（编辑器 form 左右各 14 + 卡片左右各 16）。
+   390px 屏上是 330px，而桌面那套尺寸（标签 42 + 间隙 10 + 日期 125 + 清除 28 + 时间 128
+   + 清除 28 + 行内间隙 18）要 327px 才放得下，稍窄的机型就把时间框顶出卡片。
+   这里逐项收紧：标签与间隙变窄、日期参与收缩、时间固定到刚够显示 "16:00" 的 78px、
+   图标与左内边距同步收一档（图标不缩小会压住数字）。
+   清除按钮保持 28px 不动 —— 再小就不好点了。
+   `.caldav-touch` 由 panel 根挂（Dock / 主面板），`.caldav-mobile-dialog` 由编辑弹窗挂
+   （editor.ts 的 containerClassName，落在 .b3-dialog__container 上），两者都写才能都覆盖。 */
+.caldav-touch .caldav-datetime-row,
+.caldav-mobile-dialog .caldav-datetime-row { gap: 6px; }
+
+.caldav-touch .caldav-datetime-label,
+.caldav-mobile-dialog .caldav-datetime-label { flex: 0 0 26px; font-size: 11.5px; }
+
+.caldav-touch .caldav-datetime-inputs,
+.caldav-mobile-dialog .caldav-datetime-inputs { gap: 4px; }
+
+.caldav-touch .caldav-date-input,
+.caldav-mobile-dialog .caldav-date-input { flex: 1 1 90px; padding-left: 25px; padding-right: 8px; }
+
+.caldav-touch .caldav-input-wrap--date,
+.caldav-mobile-dialog .caldav-input-wrap--date { flex: 1 1 auto; }
+
+.caldav-touch .caldav-input-wrap--time,
+.caldav-mobile-dialog .caldav-input-wrap--time { flex: 0 0 68px; min-width: 68px; }
+
+.caldav-touch .caldav-input.caldav-time-trigger,
+.caldav-mobile-dialog .caldav-input.caldav-time-trigger { padding: 8px 6px 8px 25px; }
+
+.caldav-touch .caldav-input-icon,
+.caldav-mobile-dialog .caldav-input-icon { left: 7px; }
+.caldav-touch .caldav-input-icon svg,
+.caldav-mobile-dialog .caldav-input-icon svg { width: 14px; height: 14px; }
+
+/* 极窄屏兜底（iPhone SE 一代 / 老安卓，内容宽只剩 258px）：
+   上面那套尺寸仍放不下，且原生日期框右侧自带的日历选择器图标会压住末位数字。
+   这里把两侧装饰图标全部去掉、字号收半档、间隙再压一档，把宽度让给内容。
+   日期框自身的「点开选择器」能力不受影响（WebView 里点输入框即可弹出）。 */
+@media (max-width: 350px) {
+  .caldav-touch .caldav-datetime-row .caldav-input-icon,
+  .caldav-mobile-dialog .caldav-datetime-row .caldav-input-icon { display: none; }
+  .caldav-touch .caldav-datetime-label,
+  .caldav-mobile-dialog .caldav-datetime-label { flex: 0 0 26px; font-size: 11.5px; }
+  .caldav-touch .caldav-datetime-inputs,
+  .caldav-mobile-dialog .caldav-datetime-inputs { gap: 3px; }
+  .caldav-touch .caldav-date-input,
+  .caldav-mobile-dialog .caldav-date-input { padding-left: 9px; padding-right: 2px; font-size: 11.5px; }
+  .caldav-touch .caldav-input-wrap--time,
+  .caldav-mobile-dialog .caldav-input-wrap--time { flex: 0 0 62px; min-width: 62px; }
+  .caldav-touch .caldav-input.caldav-time-trigger,
+  .caldav-mobile-dialog .caldav-input.caldav-time-trigger { padding: 8px 4px 8px 8px; font-size: 11.5px; }
+}
 
 /* ---- 窄屏布局 ---- */
 @media (max-width: 768px) {

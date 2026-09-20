@@ -377,7 +377,14 @@ assert.match(
   /\.caldav-input\.caldav-time-trigger\s*\{[^}]*padding:\s*8px 11px 8px 30px/,
   "时间触发按钮必须用双类选择器保留左侧内边距（单类会被 .caldav-input 的 padding 覆盖）"
 );
-assert.match(timeCss, /\.caldav-input-wrap--time\s*\{[^}]*flex:\s*0 0 128px/, "时间框应有固定宽度，避免被压窄");
+// 时间框：桌面上保持 128px，但**必须可收缩**并给出下限。
+// 曾经是 flex: 0 0 128px（完全不可收缩）—— 窄屏上它把整行撑破，
+// 时间框和两个清除按钮被顶出卡片外（手机端截图报过）。下限 74px 仍能完整显示 "16:00"。
+assert.match(
+  timeCss,
+  /\.caldav-input-wrap--time\s*\{[^}]*flex:\s*0 1 128px[^}]*min-width:\s*74px/,
+  "时间框应 flex: 0 1 128px + min-width: 74px（可收缩但有下限），写成 0 0 128px 会在窄屏撑破整行"
+);
 
 // 静态匹配看不出「规则被后面的同类规则覆盖」，这里把产物 CSS 真的注入文档、
 // 让浏览器算一遍层叠结果 —— 这才是这条 padding 到底生效没有的判定依据
