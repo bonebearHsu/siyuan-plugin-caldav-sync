@@ -14,15 +14,32 @@ export function renderMonthView({ ctx, viewEl, occurrences }: ViewArgs): void {
   const gridStart = new Date(first);
   gridStart.setDate(1 - ((first.getDay() + 6) % 7));
 
-  // PC 端优先 5 行(35天)；若当月天数跨到第 6 行，则扩展到 6 行(42天)。
-  // 移动端保持 6 行，便于瘦身逻辑。
-  const firstDayOffset = (first.getDay() + 6) % 7; // 周一=0 ... 周日=6
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const needsSixRows = firstDayOffset + daysInMonth > 35;
-  const totalCells = isMobile() || needsSixRows ? 42 : 35;
+  // 移动端保持 6 行整月 + 无事件周瘦身；PC 端改用「以今天为锚的 5 周滑动窗口」：
+  // 今天所在月时锚定今天，翻到其他月时锚定该月 15 号（居中），保证翻月有意义且窗口覆盖该月主体。
+  const cursorYM = `${y}-${String(m).padStart(2, "0")}`;
+  const todayYM = todayStamp().slice(0, 7);
+  const isMb = isMobile();
+  let windowStartMs: number;
+  let totalCells: number;
+  if (isMb) {
+    windowStartMs = gridStart.getTime();
+    totalCells = 42;
+  } else {
+    const todayDate = new Date();
+    const anchor = cursorYM === todayYM ? todayDate : new Date(y, m - 1, 15);
+    const monthFirst = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const aStart = new Date(monthFirst);
+    aStart.setDate(1 - ((monthFirst.getDay() + 6) % 7)); // 当月1号所在周一对齐 = 标准 6 行月历起点
+    const R = Math.floor((anchor.getTime() - aStart.getTime()) / 86400000 / 7) + 1; // 锚在标准 6 行月历中的行号 1..6
+    const startWeek = R >= 5 ? 1 : 0; // 今天在第 5/6 行 → 窗口后移显示第 2~6 行；否则第 1~5 行。恒为 5 行。
+    const w = new Date(aStart);
+    w.setDate(w.getDate() + startWeek * 7);
+    windowStartMs = w.getTime();
+    totalCells = 35;
+  }
   const totalWeeks = totalCells / 7;
 
-  const startMs = gridStart.getTime();
+  const startMs = windowStartMs;
   const endMs = startMs + totalCells * 86400000;
   const occMap = occurrences(startMs, endMs);
   const today = todayStamp();
