@@ -596,7 +596,7 @@ export interface DockPanelOpts {
   onAddTask: () => void;
   onSort: (mode: SortMode) => void;
   onOpenEditor: (item: CalItem) => void;
-  onToggleDone: (item: CalItem) => void;
+  onToggleDone: (item: CalItem) => void | Promise<void>;
 }
 
 export function renderDockPanel(
@@ -775,6 +775,9 @@ export function renderDockPanel(
   let dockFilter: DockFilter = "next7";
   let dockSearch = "";
   let dockCategoryFilter: string[] = []; // 空 = 所有分类；"__none__" = 无分类
+
+  /** 勾选待办时抑制整列表重建：改状态只改这一行的 class/复选框，列表不闪、滚动不复位 */
+  let suppressDockRerender = false;
 
   function isEnabledCalendar(it: CalItem): boolean {
     return opts.store.settings.calendars.some((c) => c.enabled && c.url === it.calendarUrl);
@@ -1083,7 +1086,16 @@ export function renderDockPanel(
     const toggleEl = t.closest("[data-toggle]") as HTMLElement | null;
     if (toggleEl && listEl.contains(toggleEl)) {
       const item = opts.store.get(toggleEl.dataset.toggle!);
-      if (item) opts.onToggleDone(item);
+      if (item && item.kind === "todo") {
+        // 就地更新：只改这一行的完成态，不重建列表（否则整列闪烁、滚动位置复位）
+        const nextDone = item.percent !== 100;
+        const row = toggleEl.closest(".caldav-dock-item") as HTMLElement | null;
+        row?.classList.toggle("is-done", nextDone);
+        const cb = toggleEl.querySelector<HTMLInputElement>("input[type=checkbox]");
+        if (cb) cb.checked = nextDone;
+        suppressDockRerender = true;
+        void Promise.resolve(opts.onToggleDone(item)).finally(() => (suppressDockRerender = false));
+      }
       ev.stopPropagation();
       return;
     }
@@ -1195,6 +1207,8 @@ export function renderDockPanel(
   window.addEventListener("resize", onScrollClose);
 
   const unsub = opts.store.onChange(() => {
+    // 勾选引发的变更跳过重建：DOM 已就地更新，重建只会闪一下并把滚动打回顶部
+    if (suppressDockRerender) return;
     renderStatus();
     renderDockList();
   });
@@ -1227,14 +1241,18 @@ export function renderDockPanel(
   };
 }
 
-export function toggleTodoDone(ctx: PanelCtx, item: CalItem): void {
-  if (item.kind !== "todo") return;
+/**
+ * 勾选待办（Dock 走这条）：返回 Promise，便于调用方在同步完成后再解除重渲染抑制。
+ * 这里只负责「改状态 + 落库同步」，DOM 由调用方就地更新（避免整列表重建导致闪烁/滚动复位）。
+ */
+export function toggleTodoDone(ctx: PanelCtx, item: CalItem): Promise<void> {
+  if (item.kind !== "todo") return Promise.resolve();
   const done = item.percent === 100;
   item.percent = done ? 0 : 100;
   item.status = done ? "NEEDS-ACTION" : "COMPLETED";
   if (!done) item.completedAt = new Date().toISOString().slice(0, 19);
   else item.completedAt = undefined;
-  void ctx.sync.updateItem(item);
+  return ctx.sync.updateItem(item);
 }
 
 export function stepCursor(cursor: string, mode: ViewMode, dir: number): string {
