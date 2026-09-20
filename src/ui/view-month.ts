@@ -2,6 +2,7 @@
 import { addDays, dateStampOfMs, todayStamp } from "../core/date";
 import { monthChipHtml, calColorOf, type ViewArgs } from "./view-common";
 import { openDateAddMenu } from "./date-add-menu";
+import { isMobile } from "./device";
 
 const WEEK_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
@@ -33,21 +34,24 @@ export function renderMonthView({ ctx, viewEl, occurrences }: ViewArgs): void {
     }
   }
 
-  // 按周统计是否有事件/任务，用于无事件周减少行高
-  const weekHasEvents: boolean[] = [];
-  for (let w = 0; w < 6; w++) {
-    let has = false;
-    for (let d = 0; d < 7; d++) {
-      const day = addDays(dateStampOfMs(startMs), w * 7 + d);
-      if ((buckets.get(day) || []).length > 0) { has = true; break; }
+  // 移动端：按周统计是否有事件/任务，无事件周减少行高；PC 端保持默认 6 等分
+  const rowTemplate = (() => {
+    if (!isMobile()) return "";
+    const weekHasEvents: boolean[] = [];
+    for (let w = 0; w < 6; w++) {
+      let has = false;
+      for (let d = 0; d < 7; d++) {
+        const day = addDays(dateStampOfMs(startMs), w * 7 + d);
+        if ((buckets.get(day) || []).length > 0) { has = true; break; }
+      }
+      weekHasEvents.push(has);
     }
-    weekHasEvents.push(has);
-  }
-  const rowTemplate = weekHasEvents.map((has) => (has ? "1.45fr" : "0.72fr")).join(" ");
+    return `grid-template-rows: ${weekHasEvents.map((has) => (has ? "1.45fr" : "0.72fr")).join(" ")};`;
+  })();
 
   const MAX_CHIPS = 3;
   const html: string[] = [];
-  html.push(`<div class="cal-month"><div class="cal-month-weeks">${WEEK_LABELS.map((w) => `<div class="cal-month-weeklabel">${w}</div>`).join("")}</div><div class="cal-month-grid" style="grid-template-rows: ${rowTemplate}">`);
+  html.push(`<div class="cal-month"><div class="cal-month-weeks">${WEEK_LABELS.map((w) => `<div class="cal-month-weeklabel">${w}</div>`).join("")}</div><div class="cal-month-grid" ${rowTemplate ? `style="${rowTemplate}"` : ""}>`);
   for (let i = 0; i < 42; i++) {
     const day = addDays(dateStampOfMs(startMs), i);
     const inMonth = +day.slice(5, 7) === m;

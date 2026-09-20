@@ -510,7 +510,9 @@
   border-bottom: 1px solid var(--caldav-border);
   min-height: 30px;
   max-height: 96px;
-  overflow: auto;
+  overflow-y: auto;
+  /* 与下方时间网格同步预留滚动条槽，避免滚动条出现/不出现导致列宽跳变、分隔线错位 */
+  scrollbar-gutter: stable;
 }
 
 .cal-wk-allday-label {
@@ -539,6 +541,8 @@
   display: flex;
   overflow-y: auto;
   min-height: 0;
+  /* 预留滚动条槽，确保时间网格与上方全天事件区的列宽始终一致、分隔线上下对齐 */
+  scrollbar-gutter: stable;
 }
 
 .cal-wk-gutter {

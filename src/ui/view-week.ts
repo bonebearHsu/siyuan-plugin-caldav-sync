@@ -35,11 +35,13 @@ export function renderWeekView({ ctx, viewEl, occurrences }: ViewArgs, days: num
       if (it.allDay || isDateOnly(occ)) {
         allDay.push({ it, occ });
       } else {
-        const sh = +occ.slice(11, 13), sm = +occ.slice(14, 16);
+        // 统一从时间戳字符串解析 HH:mm，确保标签、位置、结束时间同源
+        const timeRe = /T(\d{2}):(\d{2}):\d{2}$/;
+        const startMatch = timeRe.exec(occ);
+        const startMin = startMatch ? +startMatch[1] * 60 + +startMatch[2] : 0;
         const end = it.end || occ;
-        const eh = +end.slice(11, 13), em = +end.slice(14, 16);
-        const startMin = sh * 60 + sm;
-        const endMin = Math.max(startMin + 15, eh * 60 + em);
+        const endMatch = timeRe.exec(end) || startMatch;
+        const endMin = Math.max(startMin + 15, endMatch ? +endMatch[1] * 60 + +endMatch[2] : startMin + 60);
         blocks.push({ it, occ, day, startMin, endMin: Math.min(endMin, 1440) });
       }
     }
@@ -86,9 +88,10 @@ export function renderWeekView({ ctx, viewEl, occurrences }: ViewArgs, days: num
           const k = keyOfItem(b.it);
           const top = (b.startMin / 1440) * 100;
           const height = Math.max(((b.endMin - b.startMin) / 1440) * 100, 4);
+          const startLabel = `${String(b.startMin / 60 | 0).padStart(2, "0")}:${String(b.startMin % 60).padStart(2, "0")}`;
           return `<div class="cal-wk-block ${b.it.kind === "todo" ? "cal-wk-block-todo" : ""}" data-open="${k}"
-            style="--cal-color:${calColorOf(ctx, b.it)};top:calc(${top}% );height:${height}%">
-            <div class="cal-wk-block-time">${String(b.startMin / 60 | 0).padStart(2, "0")}:${String(b.startMin % 60).padStart(2, "0")}</div>
+            style="--cal-color:${calColorOf(ctx, b.it)};top:${top}%;height:${height}%">
+            <div class="cal-wk-block-time">${startLabel}</div>
             <div class="cal-wk-block-title">${b.it.rrule ? "↻ " : ""}${escape(b.it.summary || "(无标题)")}</div>
             ${b.it.location ? `<div class="cal-wk-block-loc">📍 ${escape(b.it.location)}</div>` : ""}
           </div>`;
