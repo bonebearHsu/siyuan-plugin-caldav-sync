@@ -433,6 +433,39 @@
   cursor: pointer;
 }
 
+/* 月视图专用卡片：两行显示（标题 + 时间），标题超出直接裁切不显示省略号 */
+.cal-month-cell .cal-chip {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 2px 6px 2px 8px;
+  line-height: 1.35;
+}
+
+.cal-month-cell .cal-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.cal-month-cell .cal-chip-row-time {
+  padding-left: 0;
+}
+
+.cal-month-cell .cal-chip-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip; /* 不要“…” */
+  min-width: 0;
+}
+
+.cal-month-cell .cal-chip-time {
+  font-size: 10.5px;
+  color: var(--caldav-text-2);
+}
+
 /* ===== 周/日视图 ===== */
 .cal-wk {
   display: flex;
@@ -2952,6 +2985,9 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 .caldav-mobile-dialog .cal-chip-time { display: none; }
 .caldav-touch .cal-wk-block-time,
 .caldav-mobile-dialog .cal-wk-block-time { display: none; }
+/* 月视图恢复时间显示：卡片已是两行布局，时间单独一行不会被标题挤掉 */
+.caldav-touch .cal-month-cell .cal-chip-time,
+.caldav-mobile-dialog .cal-month-cell .cal-chip-time { display: inline; }
 
 /* Dock 工具栏在触摸端整体放大一档：命中区更友好，宽高比也更协调 */
 .caldav-touch .caldav-dock-actions { gap: 8px; }

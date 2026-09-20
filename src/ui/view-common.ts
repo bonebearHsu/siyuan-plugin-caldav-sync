@@ -33,7 +33,7 @@ export function keyOfItem(it: CalItem): string {
   return it.recurId ? `${it.uid}|${it.recurId}|${it.kind}` : `${it.uid}|${it.kind}`;
 }
 
-/** 条目 chip 公共结构 */
+/** 条目 chip 公共结构（周视图全天行等紧凑单行场景） */
 export function chipHtml(it: CalItem, occ: string, calColor: string): string {
   const k = keyOfItem(it);
   const done = it.kind === "todo" && it.percent === 100;
@@ -46,6 +46,24 @@ export function chipHtml(it: CalItem, occ: string, calColor: string): string {
   }
   return `<div class="cal-chip ${done ? "is-done" : ""}" data-open="${k}" style="--cal-color:${calColor}">
     ${timeLabel}<span class="cal-chip-title">${repeatMark(it)}${escape(it.summary || "(无标题)")}</span>
+  </div>`;
+}
+
+/**
+ * 月视图专用 chip：两行显示。
+ * - 第一行：复选框（待办）+ 标题；标题单行，超出直接裁切（无省略号）。
+ * - 第二行：开始/到期时间；全天事件/任务不显示时间行。
+ */
+export function monthChipHtml(it: CalItem, occ: string, calColor: string): string {
+  const k = keyOfItem(it);
+  const done = it.kind === "todo" && it.percent === 100;
+  const check = it.kind === "todo" ? `<button class="cal-chip-check" data-toggle="${k}" title="${done ? "标记未完成" : "标记完成"}">✓</button>` : "";
+  const timeRow = it.allDay
+    ? ""
+    : `<div class="cal-chip-row cal-chip-row-time"><span class="cal-chip-time">${occ.slice(11, 16)}</span></div>`;
+  return `<div class="cal-chip cal-chip-month ${done ? "is-done" : ""}" data-open="${k}" style="--cal-color:${calColor}">
+    <div class="cal-chip-row">${check}<span class="cal-chip-title">${repeatMark(it)}${escape(it.summary || "(无标题)")}</span></div>
+    ${timeRow}
   </div>`;
 }
 
