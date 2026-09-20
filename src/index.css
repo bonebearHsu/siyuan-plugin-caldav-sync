@@ -471,18 +471,13 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* 唯一纵向滚动容器：滚动条落在最外层右侧，内部三区(表头/全天/网格)的
-     网格列宽始终相等(=总宽-48px gutter)，分隔竖线上下对齐。 */
-  overflow-y: auto;
+  overflow: hidden;
   position: relative;
 }
 
 .cal-wk-header {
   display: flex;
   border-bottom: 1px solid var(--caldav-border);
-  position: sticky;
-  top: 0;
-  z-index: 6;
   background: var(--caldav-bg, #fff);
   height: 44px;
   flex: 0 0 44px;
@@ -515,31 +510,38 @@
 .cal-wk-wd { color: var(--caldav-text-2); font-size: 11px; }
 .cal-wk-num { font-weight: 600; font-size: 15px; padding: 2px 6px; }
 
-.cal-wk-allday {
-  display: flex;
-  border-bottom: 1px solid var(--caldav-border);
-  min-height: 30px;
-  max-height: 96px;
-  /* 不独立滚动：避免内部滚动条挤窄列宽、与下方网格分隔线错位。
-     内容超出 max-height 时裁切（全天事件通常很少）。 */
-  overflow: hidden;
-  position: sticky;
-  top: 44px;
-  z-index: 5;
-  background: var(--caldav-bg, #fff);
+/* 主滚动区：表头固定在 .cal-wk-header，这里负责全天区+时间网格的纵向滚动。
+   用 grid 把左侧 gutter(48px) 和右侧日期区(1fr) 对齐，滚动条落在 .cal-wk-main
+   最右侧，内部三列(表头/全天/网格)天然等宽，分隔竖线上下对齐。 */
+.cal-wk-main {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "allday-label allday-cells"
+    "grid-label   grid-days";
+  min-height: 0;
 }
 
 .cal-wk-allday-label {
+  grid-area: allday-label;
   font-size: 10.5px;
   color: var(--caldav-text-2);
   padding: 6px 4px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .cal-wk-allday-cells {
-  flex: 1;
+  grid-area: allday-cells;
   display: grid;
   grid-template-columns: repeat(var(--cols, 7), 1fr);
+  border-bottom: 1px solid var(--caldav-border);
+  min-height: 30px;
+  max-height: 96px;
+  overflow: hidden;
 }
 
 .cal-wk-allday-cell {
@@ -550,24 +552,13 @@
   gap: 2px;
 }
 
-.cal-wk-scroll {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-  /* 不再独立滚动，由外层 .cal-wk 统一滚动，保证列宽一致 */
-  overflow: visible;
-}
-
 .cal-wk-gutter {
-  flex: 0 0 48px;
+  grid-area: grid-label;
   display: flex;
   flex-direction: column;
   /* 时间轴与 .cal-wk-grid 同高(24*44px)，固定高度防止被 flex 拉伸压缩，
      否则小时间距会≠44px，导致左侧时间线与事件位置对不齐 */
   height: calc(24 * 44px);
-  flex-shrink: 0;
-  /* 含 padding 计算宽度：全天区「全天」标签有 padding，border-box 才能让它与
-     下方时间轴 gutter 同为 48px，否则宽出 8px 导致全天区整体右移、分隔线错位 */
   box-sizing: border-box;
 }
 
@@ -586,7 +577,7 @@
 }
 
 .cal-wk-grid {
-  flex: 1;
+  grid-area: grid-days;
   display: grid;
   grid-template-columns: repeat(var(--cols, 7), 1fr);
   position: relative;

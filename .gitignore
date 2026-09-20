@@ -14,5 +14,6 @@ backup/
 .test-core/
 .test-secret/
 .test-layout/
+.test-wk/
 ._*
 .workbuddy/

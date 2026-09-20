@@ -101,24 +101,27 @@ export function renderWeekView({ ctx, viewEl, occurrences }: ViewArgs, days: num
     })
     .join("");
 
+  const hasAllDay = allDay.length > 0;
+  const alldayHtml = hasAllDay
+    ? `<div class="cal-wk-allday-label">全天</div>
+       <div class="cal-wk-allday-cells">${allDayRow}</div>`
+    : "";
+
   viewEl.innerHTML = `
 <div class="cal-wk ${days === 1 ? "is-day" : ""}" style="--cols:${days}">
   <div class="cal-wk-header">
     <div class="cal-wk-gutterhead"></div>
     <div class="cal-wk-days">${dayHead}</div>
   </div>
-  <div class="cal-wk-allday">
-    <div class="cal-wk-gutter cal-wk-allday-label">全天</div>
-    <div class="cal-wk-allday-cells">${allDayRow}</div>
-  </div>
-  <div class="cal-wk-scroll">
+  <div class="cal-wk-main">
+    ${alldayHtml}
     <div class="cal-wk-gutter">${hours.join("")}</div>
     <div class="cal-wk-grid" style="height:${24 * HOUR_H}px">${gridCols}</div>
   </div>
 </div>`;
 
-  // 滚动到当前时间（外层 .cal-wk 是唯一纵向滚动容器）
-  const sc = viewEl.querySelector<HTMLElement>(".cal-wk");
+  // 滚动到当前时间（.cal-wk-main 是纵向滚动容器）
+  const sc = viewEl.querySelector<HTMLElement>(".cal-wk-main");
   if (sc) {
     const target = Math.max(0, (nowMin - 120) / 1440 * 24 * HOUR_H);
     setTimeout(() => (sc.scrollTop = target), 0);

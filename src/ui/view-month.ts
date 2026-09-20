@@ -14,8 +14,16 @@ export function renderMonthView({ ctx, viewEl, occurrences }: ViewArgs): void {
   const gridStart = new Date(first);
   gridStart.setDate(1 - ((first.getDay() + 6) % 7));
 
+  // PC 端优先 5 行(35天)；若当月天数跨到第 6 行，则扩展到 6 行(42天)。
+  // 移动端保持 6 行，便于瘦身逻辑。
+  const firstDayOffset = (first.getDay() + 6) % 7; // 周一=0 ... 周日=6
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const needsSixRows = firstDayOffset + daysInMonth > 35;
+  const totalCells = isMobile() || needsSixRows ? 42 : 35;
+  const totalWeeks = totalCells / 7;
+
   const startMs = gridStart.getTime();
-  const endMs = startMs + 42 * 86400000;
+  const endMs = startMs + totalCells * 86400000;
   const occMap = occurrences(startMs, endMs);
   const today = todayStamp();
 
@@ -34,25 +42,27 @@ export function renderMonthView({ ctx, viewEl, occurrences }: ViewArgs): void {
     }
   }
 
-  // 移动端：按周统计是否有事件/任务，无事件周减少行高；PC 端保持默认 6 等分
+  // 移动端：按周统计是否有事件/任务，无事件周减少行高；PC 端固定等分。
   const rowTemplate = (() => {
-    if (!isMobile()) return "";
-    const weekHasEvents: boolean[] = [];
-    for (let w = 0; w < 6; w++) {
-      let has = false;
-      for (let d = 0; d < 7; d++) {
-        const day = addDays(dateStampOfMs(startMs), w * 7 + d);
-        if ((buckets.get(day) || []).length > 0) { has = true; break; }
+    if (isMobile()) {
+      const weekHasEvents: boolean[] = [];
+      for (let w = 0; w < totalWeeks; w++) {
+        let has = false;
+        for (let d = 0; d < 7; d++) {
+          const day = addDays(dateStampOfMs(startMs), w * 7 + d);
+          if ((buckets.get(day) || []).length > 0) { has = true; break; }
+        }
+        weekHasEvents.push(has);
       }
-      weekHasEvents.push(has);
+      return `grid-template-rows: ${weekHasEvents.map((has) => (has ? "1.45fr" : "0.72fr")).join(" ")};`;
     }
-    return `grid-template-rows: ${weekHasEvents.map((has) => (has ? "1.45fr" : "0.72fr")).join(" ")};`;
+    return `grid-template-rows: repeat(${totalWeeks}, 1fr);`;
   })();
 
   const MAX_CHIPS = 3;
   const html: string[] = [];
   html.push(`<div class="cal-month"><div class="cal-month-weeks">${WEEK_LABELS.map((w) => `<div class="cal-month-weeklabel">${w}</div>`).join("")}</div><div class="cal-month-grid" ${rowTemplate ? `style="${rowTemplate}"` : ""}>`);
-  for (let i = 0; i < 42; i++) {
+  for (let i = 0; i < totalCells; i++) {
     const day = addDays(dateStampOfMs(startMs), i);
     const inMonth = +day.slice(5, 7) === m;
     const isToday = day === today;
