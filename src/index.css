@@ -419,10 +419,26 @@
   padding: 0;
 }
 
+/* 完成态：实心圆 + 白色对勾。
+   ⚠️ 绝不能把 :hover 也写成这个样子 —— 鼠标点完会停在圆圈上，hover 一直生效，
+   于是「未完成」看起来和「已完成」完全一样，用户就会以为「点不动了」。
+   hover 只给一层淡底提示可点，勾不显现。 */
 .cal-chip.is-done .cal-chip-check,
-.cal-chip-check:hover {
+.cal-wk-block.is-done .cal-chip-check {
   background: var(--cal-color, #64748b);
   color: #fff;
+  border-color: var(--cal-color, #64748b);
+}
+
+.cal-chip.is-done .cal-chip-check:hover,
+.cal-wk-block.is-done .cal-chip-check:hover {
+  filter: brightness(0.88);
+}
+
+.cal-chip:not(.is-done) .cal-chip-check:hover,
+.cal-wk-block:not(.is-done) .cal-chip-check:hover {
+  background: color-mix(in srgb, var(--cal-color, #64748b) 20%, transparent);
+  color: color-mix(in srgb, var(--cal-color, #64748b) 45%, transparent);
   border-color: var(--cal-color, #64748b);
 }
 

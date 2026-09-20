@@ -422,9 +422,20 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
         item.percent = nextDone ? 100 : 0;
         item.status = nextDone ? "COMPLETED" : "NEEDS-ACTION";
         item.completedAt = nextDone ? new Date().toISOString().slice(0, 19) : undefined;
-        updateTodoCheckDOM(app, toggleEl.dataset.toggle!, nextDone);
+        const key = toggleEl.dataset.toggle!;
+        updateTodoCheckDOM(app, key, nextDone);
         suppressRerender = true;
-        void ctx.sync.updateItem(item).finally(() => (suppressRerender = false));
+        // 兜底：万一同步 promise 一直挂着（网络挂起/等待解锁），最多抑制 10s，
+        // 否则界面从此再也不刷新，表现出来就是「点了没反应」。
+        const guard = setTimeout(() => (suppressRerender = false), 10000);
+        void ctx.sync.updateItem(item).finally(() => {
+          clearTimeout(guard);
+          suppressRerender = false;
+          // 同步收尾后按 store 里的真实状态校正一次：上面那次是乐观更新，
+          // 若推送失败/被服务端覆盖而界面停留在乐观值，用户会以为「点了没用」。
+          const real = ctx.store.get(key);
+          if (real) updateTodoCheckDOM(app, key, real.percent === 100);
+        });
         ev.stopPropagation();
         return;
       }
@@ -1093,8 +1104,20 @@ export function renderDockPanel(
         row?.classList.toggle("is-done", nextDone);
         const cb = toggleEl.querySelector<HTMLInputElement>("input[type=checkbox]");
         if (cb) cb.checked = nextDone;
+        const key = toggleEl.dataset.toggle!;
         suppressDockRerender = true;
-        void Promise.resolve(opts.onToggleDone(item)).finally(() => (suppressDockRerender = false));
+        const guard = setTimeout(() => (suppressDockRerender = false), 10000);
+        void Promise.resolve(opts.onToggleDone(item)).finally(() => {
+          clearTimeout(guard);
+          suppressDockRerender = false;
+          // 与日历视图同理：同步收尾后按 store 真实值校正这一行
+          const real = opts.store.get(key);
+          if (real) {
+            const done = real.percent === 100;
+            row?.classList.toggle("is-done", done);
+            if (cb) cb.checked = done;
+          }
+        });
       }
       ev.stopPropagation();
       return;
