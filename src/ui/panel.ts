@@ -171,7 +171,7 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     const enabled = new Set(ctx.store.settings.calendars.filter((c) => c.enabled).map((c) => c.url));
     const out = new Map<CalItem, string[]>();
     for (const it of ctx.store.getAll()) {
-      if (it.deleted || it.dirty) continue;
+      if (it.deleted) continue;
       if (!enabled.has(it.calendarUrl)) continue;
       const occ =
         it.kind === "todo" ? todoDueOccurrences(it, startMs, endMs) : occurrencesInRange(it, startMs, endMs);
@@ -786,7 +786,7 @@ export function renderDockPanel(
   }
 
   function matchesDockFilter(it: CalItem, filter: DockFilter): boolean {
-    if (it.deleted || it.dirty) return false;
+    if (it.deleted) return false;
     if (!isEnabledCalendar(it)) return false;
 
     const today = todayStamp();
@@ -997,7 +997,7 @@ export function renderDockPanel(
     const q = dockSearch.toLowerCase().trim();
     return opts.store
       .getAll()
-      .filter((it) => it.kind === "todo" && !it.deleted && !it.dirty && it.percent !== 100)
+      .filter((it) => it.kind === "todo" && !it.deleted && it.percent !== 100)
       .filter((it) => isEnabledCalendar(it))
       .filter((it) => !dateKeyOf(it))
       .filter((it) => matchesDockCategoryFilter(it, dockCategoryFilter))

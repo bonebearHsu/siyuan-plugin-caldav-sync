@@ -1,8 +1,7 @@
-/** 月视图：6 行 x 7 列（周一起始） */
+/** 月视图：5 行 x 7 列（周一起始，以今天为锚的滑动窗口） */
 import { addDays, dateStampOfMs, todayStamp } from "../core/date";
 import { monthChipHtml, calColorOf, type ViewArgs } from "./view-common";
 import { openDateAddMenu } from "./date-add-menu";
-import { isMobile } from "./device";
 
 const WEEK_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
@@ -10,34 +9,23 @@ export function renderMonthView({ ctx, viewEl, occurrences }: ViewArgs): void {
   const cursor = ctx.cursor;
   const y = +cursor.slice(0, 4);
   const m = +cursor.slice(5, 7);
-  const first = new Date(y, m - 1, 1);
-  const gridStart = new Date(first);
-  gridStart.setDate(1 - ((first.getDay() + 6) % 7));
 
-  // 移动端保持 6 行整月 + 无事件周瘦身；PC 端改用「以今天为锚的 5 周滑动窗口」：
-  // 今天所在月时锚定今天，翻到其他月时锚定该月 15 号（居中），保证翻月有意义且窗口覆盖该月主体。
+  // 「以今天为锚的 5 周滑动窗口」：今天所在月时锚定今天，翻到其他月时锚定该月 15 号（居中），
+  // 保证翻月有意义且窗口恒为 5 行。若锚落在标准 6 行月历的第 5/6 行，则窗口后移一周。
   const cursorYM = `${y}-${String(m).padStart(2, "0")}`;
   const todayYM = todayStamp().slice(0, 7);
-  const isMb = isMobile();
-  let windowStartMs: number;
-  let totalCells: number;
-  if (isMb) {
-    windowStartMs = gridStart.getTime();
-    totalCells = 42;
-  } else {
-    const todayDate = new Date();
-    const anchor = cursorYM === todayYM ? todayDate : new Date(y, m - 1, 15);
-    const monthFirst = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-    const aStart = new Date(monthFirst);
-    aStart.setDate(1 - ((monthFirst.getDay() + 6) % 7)); // 当月1号所在周一对齐 = 标准 6 行月历起点
-    const R = Math.floor((anchor.getTime() - aStart.getTime()) / 86400000 / 7) + 1; // 锚在标准 6 行月历中的行号 1..6
-    const startWeek = R >= 5 ? 1 : 0; // 今天在第 5/6 行 → 窗口后移显示第 2~6 行；否则第 1~5 行。恒为 5 行。
-    const w = new Date(aStart);
-    w.setDate(w.getDate() + startWeek * 7);
-    windowStartMs = w.getTime();
-    totalCells = 35;
-  }
-  const totalWeeks = totalCells / 7;
+  const todayDate = new Date();
+  const anchor = cursorYM === todayYM ? todayDate : new Date(y, m - 1, 15);
+  const monthFirst = new Date(y, m - 1, 1);
+  const aStart = new Date(monthFirst);
+  aStart.setDate(1 - ((monthFirst.getDay() + 6) % 7)); // 当月1号所在周一对齐 = 标准 6 行月历起点
+  const R = Math.floor((anchor.getTime() - aStart.getTime()) / 86400000 / 7) + 1; // 锚在标准 6 行月历中的行号 1..6
+  const startWeek = R >= 5 ? 1 : 0; // 今天在第 5/6 行 → 窗口后移显示第 2~6 行；否则第 1~5 行。恒为 5 行。
+  const w = new Date(aStart);
+  w.setDate(w.getDate() + startWeek * 7);
+  const windowStartMs = w.getTime();
+  const totalCells = 35;
+  const totalWeeks = 5;
 
   const startMs = windowStartMs;
   const endMs = startMs + totalCells * 86400000;
@@ -59,22 +47,7 @@ export function renderMonthView({ ctx, viewEl, occurrences }: ViewArgs): void {
     }
   }
 
-  // 移动端：按周统计是否有事件/任务，无事件周减少行高；PC 端固定等分。
-  const rowTemplate = (() => {
-    if (isMobile()) {
-      const weekHasEvents: boolean[] = [];
-      for (let w = 0; w < totalWeeks; w++) {
-        let has = false;
-        for (let d = 0; d < 7; d++) {
-          const day = addDays(dateStampOfMs(startMs), w * 7 + d);
-          if ((buckets.get(day) || []).length > 0) { has = true; break; }
-        }
-        weekHasEvents.push(has);
-      }
-      return `grid-template-rows: ${weekHasEvents.map((has) => (has ? "1.45fr" : "0.72fr")).join(" ")};`;
-    }
-    return `grid-template-rows: repeat(${totalWeeks}, 1fr);`;
-  })();
+  const rowTemplate = `grid-template-rows: repeat(${totalWeeks}, 1fr);`;
 
   const MAX_CHIPS = 3;
   const html: string[] = [];

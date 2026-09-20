@@ -513,24 +513,27 @@
 /* 主滚动区：表头固定在 .cal-wk-header，这里负责全天区+时间网格的纵向滚动。
    用 grid 把左侧 gutter(48px) 和右侧日期区(1fr) 对齐，滚动条落在 .cal-wk-main
    最右侧，内部三列(表头/全天/网格)天然等宽，分隔竖线上下对齐。
-   无全天事件时 .cal-wk-main 只有一行（grid-days），全天区整行不占高度。 */
+   无全天事件时全天区 DOM 不渲染，auto 行自动塌成 0，不再占高度。
+   基座始终保留两行模板，防止旧代码/异常情况下「全天」标签被排到最底部。 */
 .cal-wk-main {
   flex: 1;
   overflow-y: auto;
   display: grid;
   grid-template-columns: 48px 1fr;
-  grid-template-rows: 1fr;
-  grid-template-areas: "grid-label grid-days";
-  min-height: 0;
-}
-
-/* 有全天事件时，顶部多一行全天区，其行高与下方时间网格每行（1 小时 = 44px）等高 */
-.cal-wk-main.has-allday {
-  grid-template-rows: 44px 1fr;
+  grid-template-rows: auto 1fr;
   grid-template-areas:
     "allday-label allday-cells"
     "grid-label   grid-days";
+  min-height: 0;
 }
+
+/* 显式关闭全天区时（JS 空状态兜底），整行完全收起 */
+.cal-wk-main.no-allday {
+  grid-template-rows: 1fr;
+  grid-template-areas: "grid-label grid-days";
+}
+.cal-wk-main.no-allday .cal-wk-allday-label,
+.cal-wk-main.no-allday .cal-wk-allday-cells { display: none; }
 
 .cal-wk-allday-label {
   grid-area: allday-label;
