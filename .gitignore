@@ -12,5 +12,6 @@ package.zip
 # 本地备份快照与临时文件
 backup/
 .test-core/
+.test-secret/
 ._*
 .workbuddy/

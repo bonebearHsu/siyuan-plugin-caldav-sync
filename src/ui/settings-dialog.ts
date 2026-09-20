@@ -82,7 +82,12 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
     });
 
     if (ctx.store.secretBroken) {
-      msgEl.textContent = "本地密钥已丢失，原密码无法解密，请重新输入密码后保存";
+      // 密码密文是「另一台设备用另一把密钥」写的 —— 多端共用同一份数据，密钥却各不同。
+      // 说清楚原因，用户才知道为什么要重输，而不是以为密码被吞了。
+      msgEl.textContent = "密码解不开：这段密文由另一台设备写入。请在本机重新输入一次密码并保存，之后各端都会一致";
+      msgEl.classList.add("is-err");
+    } else if (ctx.store.pendingUnlock) {
+      msgEl.textContent = "密码待解密（密钥尚未就绪），稍后自动重试；若长时间未恢复，请重新输入密码并保存";
       msgEl.classList.add("is-err");
     }
 
@@ -138,7 +143,14 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
     el.querySelector("[data-action='save']")?.addEventListener("click", async () => {
       s.serverUrl = $("input[data-s='server']").value.trim();
       s.username = $("input[data-s='username']").value.trim();
-      s.password = $("input[data-s='password']").value;
+      // 密码框留空 = 保持原样。解密失败时输入框本就是空的，用户只想改别的字段
+      // 却点保存 —— 若无条件用空值覆盖，密码就被抹掉了（这正是丢密码的直接原因之一）。
+      const pwInput = $("input[data-s='password']").value;
+      if (pwInput) {
+        s.password = pwInput;
+        ctx.store.secretBroken = false;
+        ctx.store.pendingUnlock = false;
+      }
       s.calendarPath = $("input[data-s='path']").value.trim();
       s.channel = $("select[data-s='channel']").value as any;
       s.syncIntervalMin = Math.max(0, +$("input[data-s='interval']").value || 0);
@@ -195,7 +207,7 @@ function settingsHtml(s: PanelCtx["store"]["settings"], mobile: boolean): string
       </div>
       <div class="caldav-field">
         <label class="caldav-field-label">密码</label>
-        <input class="caldav-input" type="password" data-s="password" value="${escape(s.password)}"/>
+        <input class="caldav-input" type="password" data-s="password" value="${escape(s.password)}" placeholder="留空则保持不变" autocomplete="new-password"/>
       </div>
     </div>
     <div class="caldav-field-row">

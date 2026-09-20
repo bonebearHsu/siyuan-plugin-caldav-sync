@@ -141,6 +141,12 @@ export interface PersistData {
   settings: CalSettings;
   items: CalItem[];
   sync: SyncState;
+  /**
+   * 凭据加密的主密钥（base64）。**故意与密文放在同一份数据里**：
+   * 这份数据会被思源云同步带到别的设备，密钥同行才能保证「换设备/多端」都解得开。
+   * 详见 core/secret.ts 里对 v2（设备绑定密钥）被淘汰的原因说明。
+   */
+  keyring?: string;
 }
 
 export function pad2(n: number): string {

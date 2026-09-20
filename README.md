@@ -72,7 +72,7 @@ If direct requests fail with CORS errors, set the channel to "SiYuan kernel prox
 
 ## Notes
 
-- Passwords are stored in plain text in plugin data; use self-hosted / LAN servers or restricted accounts
+- Passwords are stored as AES-GCM ciphertext; the master key lives alongside the plugin data, so **SiYuan cloud sync carries it to your other devices** and you never re-enter the password. Note this is encryption, not a vault — anyone who can read the plugin data can decrypt it. Use self-hosted / LAN servers or restricted accounts
 - Times are written as UTC in ICS; floating times are interpreted in the local timezone
 - Mobile (Android / iOS) supported: SiYuan has no tab bar on mobile and `openTab` is a no-op there, so the panel opens as a full-screen layer instead of a tab. Long-press an item to bring up the edit/delete menu (right-click on desktop)
   - On phones the calendar cells show the title only (time + title do not fit); narrowing the desktop window still keeps the time

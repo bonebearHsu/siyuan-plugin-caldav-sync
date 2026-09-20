@@ -1474,18 +1474,92 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   color: #fff;
 }
 
-/* 自定义提醒时间 */
+/* 自定义提醒时间：多行列表（每行一个提醒 + 行尾删除） */
+.caldav-alarm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .caldav-alarm-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
-.caldav-alarm-field { flex: 1; min-width: 160px; }
+.caldav-alarm-field { flex: 1; min-width: 0; }
+.caldav-alarm-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--caldav-border);
+  border-radius: 8px;
+  background: var(--caldav-bg);
+  color: var(--caldav-text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.caldav-alarm-del svg { width: 14px; height: 14px; }
+.caldav-alarm-del:hover {
+  border-color: var(--caldav-danger);
+  color: var(--caldav-danger);
+}
+.caldav-alarm-empty {
+  font-size: 12px;
+  color: var(--caldav-text-2);
+}
+.caldav-alarm-empty[hidden] { display: none; }
 .caldav-alarm-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  position: relative;
+}
+/* 预设浮层：从按钮行下方展开，宽度对齐按钮行 */
+.caldav-alarm-presets {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  padding: 5px;
+  background: var(--caldav-bg);
+  border: 1px solid var(--caldav-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+/* hidden 属性必须显式生效：上面的 display:flex 会覆盖 UA 的 [hidden]{display:none} */
+.caldav-alarm-presets[hidden] { display: none; }
+.caldav-alarm-presets-hint {
+  font-size: 12px;
+  color: var(--caldav-text-2);
+  padding: 6px 8px 4px;
+}
+.caldav-alarm-preset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--caldav-text);
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.caldav-alarm-preset:hover { background: color-mix(in srgb, var(--caldav-accent) 12%, transparent); }
+.caldav-alarm-preset > span {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--caldav-accent);
 }
 .caldav-add-btn {
   display: inline-flex;

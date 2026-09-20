@@ -4,7 +4,7 @@
 import { Dialog } from "siyuan";
 import { isMobile } from "./device";
 import { adoptMobileLayer } from "./mobile-layers";
-import type { CalItem, CalKind, CategoryDef, Recurrence } from "../core/types";
+import type { Alarm, CalItem, CalKind, CategoryDef, Recurrence } from "../core/types";
 import { DEFAULT_CATEGORIES } from "../core/types";
 import { keyOf } from "../core/store";
 import { addDays, defaultStartStamp, isDateOnly, parseLocalStamp, stampOfMs, todayStamp } from "../core/date";
@@ -127,16 +127,117 @@ function repeatSummary(r: Recurrence | undefined): string {
   return interval + end;
 }
 
-function alarmSelect(it: CalItem): string {
-  const opts = [0, 5, 10, 15, 30, 60, 1440]
-    .map(
-      (m) =>
-        `<option value="${m}" ${it.alarms?.[0]?.minutesBefore === m ? "selected" : ""}>${
-          m === 0 ? "到点时" : m < 60 ? `提前 ${m} 分钟` : m === 60 ? "提前 1 小时" : "提前 1 天"
-        }</option>`
-    )
-    .join("");
-  return `<option value="">无</option>${opts}`;
+/** 可选提醒提前量（分钟）。0 = 到点时 */
+const ALARM_CHOICES = [0, 5, 10, 15, 30, 60, 1440];
+/** 提醒最多几个：再多也没人看，顺带避免界面失控 */
+const MAX_ALARMS = 8;
+
+function alarmLabel(m: number): string {
+  if (m === 0) return "到点时";
+  if (m === 1440) return "提前 1 天";
+  if (m === 60) return "提前 1 小时";
+  return `提前 ${m} 分钟`;
+}
+
+/** 单个提醒行：下拉（沿用输入框包裹层，外观与其它字段一致）+ 行尾删除 */
+function alarmRowHtml(m: number): string {
+  const opts = ALARM_CHOICES.map(
+    (v) => `<option value="${v}" ${v === m ? "selected" : ""}>${alarmLabel(v)}</option>`
+  ).join("");
+  return `<div class="caldav-alarm-row">
+      <div class="caldav-field caldav-field-icon caldav-alarm-field">
+        <div class="caldav-input-wrap">
+          <span class="caldav-input-icon">${icons.bell}</span>
+          <select class="caldav-input" data-alarm>${opts}</select>
+          <span class="caldav-input-suffix">${icons.chevron}</span>
+        </div>
+      </div>
+      <button type="button" class="caldav-alarm-del" data-action="del-alarm" title="删除这个提醒">${icons.trash}</button>
+    </div>`;
+}
+
+/** 常用组合：点一下整组加入（已存在的自动跳过） */
+const ALARM_PRESETS: { label: string; values: number[] }[] = [
+  { label: "提前 1 天 + 提前 1 小时 + 到点时", values: [1440, 60, 0] },
+  { label: "提前 15 分钟 + 到点时", values: [15, 0] },
+  { label: "提前 1 天 + 提前 30 分钟", values: [1440, 30] }
+];
+
+/**
+ * 提醒列表的交互：加一行 / 删一行 / 展开预设组合。
+ *
+ * 背景：这两个按钮（添加提醒时间、添加预设）从首个版本起就只有 HTML、**没有任何处理器**，
+ * 点了必然没反应。底层数据模型与提醒引擎一直支持多个提醒，这里把编辑器补齐。
+ */
+function wireAlarms(el: HTMLElement, errEl: HTMLElement): void {
+  const list = el.querySelector<HTMLElement>("[data-alarm-list]");
+  const addBtn = el.querySelector<HTMLButtonElement>('[data-action="add-alarm"]');
+  const presetBtn = el.querySelector<HTMLButtonElement>('[data-action="add-preset"]');
+  const presetPop = el.querySelector<HTMLElement>("[data-alarm-presets]");
+  if (!list || !addBtn) return;
+  const empty = el.querySelector<HTMLElement>("[data-alarm-empty]");
+
+  const usedValues = () =>
+    Array.from(list.querySelectorAll<HTMLSelectElement>("select[data-alarm]")).map((s) => +s.value);
+  const syncEmpty = () => {
+    if (empty) empty.hidden = list.children.length > 0;
+  };
+  const flashError = (msg: string) => {
+    errEl.textContent = msg;
+    setTimeout(() => {
+      if (errEl.textContent === msg) errEl.textContent = "";
+    }, 2500);
+  };
+  /** 新行默认值：优先「提前 15 分钟」，已被占用则依次退让，避免一加就重复 */
+  const pickDefault = () => {
+    const u = new Set(usedValues());
+    return [15, 60, 1440, 5, 30, 10, 0].find((m) => !u.has(m)) ?? 15;
+  };
+  const appendRow = (m: number): boolean => {
+    if (list.children.length >= MAX_ALARMS) {
+      flashError(`最多添加 ${MAX_ALARMS} 个提醒`);
+      return false;
+    }
+    list.insertAdjacentHTML("beforeend", alarmRowHtml(m));
+    syncEmpty();
+    return true;
+  };
+
+  addBtn.addEventListener("click", () => {
+    if (presetPop) presetPop.hidden = true;
+    if (appendRow(pickDefault())) list.lastElementChild?.querySelector("select")?.focus();
+  });
+
+  presetBtn?.addEventListener("click", (ev) => {
+    ev.stopPropagation(); // 别让下面「点别处收起」的监听立刻把它关掉
+    if (presetPop) presetPop.hidden = !presetPop.hidden;
+  });
+
+  presetPop?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const btn = (ev.target as HTMLElement).closest<HTMLElement>("[data-preset]");
+    if (!btn) return;
+    const preset = ALARM_PRESETS[+btn.dataset.preset!];
+    for (const m of preset?.values || []) {
+      if (usedValues().includes(m)) continue; // 已有的不重复加
+      if (!appendRow(m)) break;
+    }
+    presetPop.hidden = true;
+  });
+
+  list.addEventListener("click", (ev) => {
+    const del = (ev.target as HTMLElement).closest<HTMLElement>('[data-action="del-alarm"]');
+    if (!del) return;
+    del.closest(".caldav-alarm-row")?.remove();
+    syncEmpty();
+  });
+
+  // 点卡片里别的地方收起预设浮层（el 随弹窗创建、销毁时一起丢弃，不会累积监听）
+  el.addEventListener("click", () => {
+    if (presetPop) presetPop.hidden = true;
+  });
+
+  syncEmpty();
 }
 
 function editorHtml(
@@ -153,6 +254,7 @@ function editorHtml(
   const endDate = it.end ? it.end.slice(0, 10) : "";
   const endTime = it.end && !it.allDay ? it.end.slice(11, 16) : "";
   const initialDuration = computeDurationLabel(it.start, it.end || it.start, it.allDay);
+  const alarmRows = (it.alarms || []).map((a) => alarmRowHtml(a.minutesBefore)).join("");
 
   return `
 <div class="caldav-editor-head">
@@ -301,18 +403,18 @@ function editorHtml(
 
     <div class="caldav-section caldav-section--card">
       <div class="caldav-section-title"><span class="caldav-section-icon">${icons.bell}</span>自定义提醒时间</div>
-      <div class="caldav-alarm-row">
-        <div class="caldav-field caldav-field-icon caldav-alarm-field">
-          <div class="caldav-input-wrap">
-            <span class="caldav-input-icon">${icons.bell}</span>
-            <select class="caldav-input" data-f="alarm">${alarmSelect(it)}</select>
-            <span class="caldav-input-suffix">${icons.chevron}</span>
-          </div>
-        </div>
-      </div>
+      <div class="caldav-alarm-list" data-alarm-list>${alarmRows}</div>
+      <div class="caldav-alarm-empty" data-alarm-empty ${alarmRows ? "hidden" : ""}>未设置提醒时间（到点时不会提醒）</div>
       <div class="caldav-alarm-actions">
         <button type="button" class="caldav-add-btn" data-action="add-alarm">${icons.plus} 添加提醒时间</button>
         <button type="button" class="caldav-add-btn" data-action="add-preset">${icons.layers} 添加预设</button>
+        <div class="caldav-alarm-presets" data-alarm-presets hidden>
+          <div class="caldav-alarm-presets-hint">常用组合，点一下整组加入</div>
+          ${ALARM_PRESETS.map(
+            (p, i) =>
+              `<button type="button" class="caldav-alarm-preset" data-preset="${i}">${escape(p.label)}<span>加 ${p.values.length} 个</span></button>`
+          ).join("")}
+        </div>
       </div>
     </div>
 
@@ -676,6 +778,9 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
     setTimeout(() => (errEl.textContent = ""), 2500);
   });
 
+  // 自定义提醒时间：多行列表 + 常用组合预设
+  wireAlarms(el, errEl);
+
   el.querySelector('[data-action="cancel"]')?.addEventListener("click", () => dialog.destroy());
 
   // 删除：改为弹窗内二次确认（思源原生 confirm 在本插件 iframe 里点击无响应，
@@ -792,9 +897,14 @@ function collect(ctx: PanelCtx, el: HTMLElement, it: CalItem): CalItem {
   } else {
     it.rrule = undefined;
   }
-  // 提醒
-  const alarmV = v("alarm");
-  it.alarms = alarmV === "" ? undefined : [{ minutesBefore: +alarmV }];
+  // 提醒：列表里一行一个，按提前量去重后写回。
+  // （曾经只写 alarms[0]，且前端只有一个下拉 —— 从别处同步来的多个提醒一保存就被丢掉）
+  const alarms: Alarm[] = [];
+  el.querySelectorAll<HTMLSelectElement>("select[data-alarm]").forEach((s) => {
+    const m = Math.max(0, Math.round(+s.value || 0));
+    if (!alarms.some((a) => a.minutesBefore === m)) alarms.push({ minutesBefore: m });
+  });
+  it.alarms = alarms.length ? alarms : undefined;
   it.location = v("location") || undefined;
   it.categories = v("categories")
     ? v("categories").split(/[,，]/).map((s) => s.trim()).filter(Boolean)

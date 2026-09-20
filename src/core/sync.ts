@@ -196,7 +196,8 @@ export class SyncEngine {
     const s = this.store.settings;
     if (!s.serverUrl) return "未配置服务器地址";
     if (!s.username) return "未填写用户名";
-    if (this.store.secretBroken) return "密码解密失败，请在设置中重新输入密码";
+    if (this.store.pendingUnlock) return "密码待解密（密钥尚未就绪），稍后会自动重试";
+    if (this.store.secretBroken) return "密码解不开（密文可能来自另一台设备），请在设置中重新输入密码";
     if (!s.password) return "未填写密码，请在设置中填写";
     return undefined;
   }

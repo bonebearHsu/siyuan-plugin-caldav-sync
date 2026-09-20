@@ -681,6 +681,64 @@ assert.strictEqual(
   "待办结束时间早于新的开始时间时，应顺延为开始时间 + 1 小时"
 );
 
+// ---- 自定义提醒时间：多提醒列表（「添加提醒时间」/「添加预设」过去点了没反应）----
+// 根因：这两个按钮从首个提交起就只有 HTML、**没有任何处理器**；且编辑器保存时只写 alarms[0]，
+// 从别处同步来的多个提醒一保存就被丢掉。底层数据模型与提醒引擎一直支持多个提醒，这里把编辑器补齐并锁死。
+const alarmKey = [...tabEl.querySelectorAll(".cal-task[data-open]")]
+  .find((el) => (el.textContent || "").includes("测试条目 2"))?.dataset.open;
+assert.ok(alarmKey, "前置：应能定位到待办「测试条目 2」的键");
+assert.ok(!document.querySelector('[data-f="alarm"]'), "旧的单提醒下拉应已移除（它会把多个提醒砍成一个）");
+
+const addAlarmBtn = document.querySelector('[data-action="add-alarm"]');
+const addPresetBtn = document.querySelector('[data-action="add-preset"]');
+assert.ok(addAlarmBtn, "应有「添加提醒时间」按钮");
+assert.ok(addPresetBtn, "应有「添加预设」按钮");
+
+const alarmRows = () => [...document.querySelectorAll("[data-alarm-list] .caldav-alarm-row")];
+const alarmValues = () => alarmRows().map((r) => +r.querySelector("select[data-alarm]").value);
+const alarmEmpty = () => document.querySelector("[data-alarm-empty]");
+
+// 先清空（该条目原本可能已有提醒）
+[...document.querySelectorAll('[data-action="del-alarm"]')].forEach(click);
+assert.strictEqual(alarmRows().length, 0, "逐行删除后应一行不剩");
+assert.ok(!alarmEmpty().hidden, "没有提醒时应显示「未设置提醒时间」提示");
+
+click(addAlarmBtn);
+assert.strictEqual(alarmRows().length, 1, "「添加提醒时间」必须真的加出一行（此前点了没反应）");
+assert.strictEqual(alarmValues()[0], 15, "新行默认「提前 15 分钟」");
+assert.ok(alarmEmpty().hidden, "有提醒后应隐藏空提示");
+click(addAlarmBtn);
+assert.strictEqual(alarmRows().length, 2, "再点一次应再加一行");
+assert.notStrictEqual(alarmValues()[0], alarmValues()[1], "新行应自动避开已用过的提前量");
+
+// 「添加预设」：展开常用组合浮层，点一项整组加入
+const presetPop = document.querySelector("[data-alarm-presets]");
+assert.ok(presetPop && presetPop.hidden, "预设浮层默认应收起");
+click(addPresetBtn);
+assert.ok(!presetPop.hidden, "点「添加预设」应展开浮层（此前点了没反应）");
+assert.strictEqual(presetPop.querySelectorAll("[data-preset]").length, 3, "应列出 3 组常用组合");
+click(presetPop.querySelectorAll("[data-preset]")[0]); // 提前 1 天 + 提前 1 小时 + 到点时
+assert.ok(presetPop.hidden, "选中后浮层应收起");
+const afterPreset = alarmValues();
+assert.ok(afterPreset.includes(1440) && afterPreset.includes(0), "预设里的「提前 1 天 / 到点时」应被加入");
+assert.strictEqual(afterPreset.length, 4, "已存在的提前量应被跳过（2 行 + 预设净增 2 个）");
+assert.strictEqual(new Set(afterPreset).size, afterPreset.length, "不应出现重复的提醒时间");
+
+// 行尾删除
+click(alarmRows()[0].querySelector('[data-action="del-alarm"]'));
+assert.strictEqual(alarmRows().length, 3, "行尾删除按钮应移除该行");
+
+// 保存：多个提醒必须全部写回（旧实现 `it.alarms = [{...alarms[0]}]` 只留第一个）
+const expectAlarms = alarmValues().sort((a, b) => a - b);
+plugin.sync.updateItem = async (item) => {
+  plugin.store.putAndEmit(item); // 离线桩：只落本地，不发请求
+};
+click(document.querySelector('.caldav-editor-foot [data-action="save"]'));
+await settle(); // 弹窗销毁是异步的（先淡出、后移除）
+const savedAlarms = (plugin.store.get(alarmKey)?.alarms || []).map((a) => a.minutesBefore).sort((a, b) => a - b);
+assert.deepStrictEqual(savedAlarms, expectAlarms, "保存应写入全部提醒（旧实现只留第一个）");
+assert.ok(!document.querySelector(".caldav-editor"), "保存成功后编辑弹窗应关闭");
+
 // ---- 卸载：应主动关闭主窗口里已打开的「日历」自定义页签 ----
 // 思源在禁用/卸载插件时只摘掉自己接管的注册项（Dock / 顶栏 / 工具栏），不会关闭页签，
 // 于是主窗口会残留一个空白「日历」页签，且布局被写进 conf，重启后依然在。

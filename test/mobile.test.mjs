@@ -374,6 +374,22 @@ await settle();
 assert.strictEqual(allLayers(), 1, "悬空的旧引用应被彻底丢弃，不留残壳");
 await clearAllLayers();
 
+// ---- 凭据安全：密码框留空不得覆盖已存密码（「总是丢密码」的直接原因之一） ----
+const buildJs = fs.readFileSync(
+  path.join(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), "dist", "index.js"),
+  "utf8"
+);
+assert.ok(buildJs.includes("留空则保持不变"), "密码框必须提示「留空则保持不变」（留空即覆盖是丢密码的直接原因）");
+assert.ok(
+  buildJs.includes("密码解不开：这段密文由另一台设备写入"),
+  "解密失败时应说明密文来自另一台设备，而不是含糊地说「密钥丢失」"
+);
+assert.ok(buildJs.includes("密码待解密（密钥尚未就绪）"), "密钥未就绪必须是可重试的独立状态，不能等同密码损坏");
+assert.ok(
+  !buildJs.includes("本地密钥已丢失"),
+  "旧的误导性提示必须消失（它让用户以为密码没了，实际只是密钥来源不同）"
+);
+
 // ---- 产物断言：移动端样式与插件声明 ----
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const css = fs.readFileSync(path.join(root, "dist", "index.css"), "utf8");

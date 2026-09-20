@@ -262,7 +262,7 @@ async function ta(name, fn) {
 await ta("加解密往返一致", async () => {
   const cipher = await secret.encryptSecret("p@ss w0rd-中文");
   assert.ok(secret.isEncrypted(cipher), "应为密文格式: " + cipher);
-  assert.ok(cipher.startsWith("enc:v1:"), "未设置设备标识时应走兼容格式: " + cipher.slice(0, 10));
+  assert.ok(cipher.startsWith("enc:v3:"), "应使用随数据同步的主密钥（v3）: " + cipher.slice(0, 10));
   assert.ok(!cipher.includes("p@ss"), "密文不应包含明文片段");
   assert.strictEqual(await secret.decryptSecret(cipher), "p@ss w0rd-中文");
 });
@@ -307,16 +307,16 @@ await ta("旧明文密码自动迁移为密文", async () => {
   await st.persist();
   assert.ok(secret.isEncrypted(saved.data.settings.password), "迁移后应为密文");
 });
-await ta("设备标识（v2）：加解密往返且不受 iframe 端口影响", async () => {
+await ta("凭据加密使用随数据同步的 v3 主密钥（与 iframe 端口无关）", async () => {
   secret.setSecretSeed("sysid-abc|D:/SiYuan");
   const cipher = await secret.encryptSecret("pwd-中文-123");
-  assert.ok(cipher.startsWith("enc:v2:"), "应使用设备标识密钥: " + cipher.slice(0, 12));
+  assert.ok(cipher.startsWith("enc:v3:"), "加密一律使用 v3 主密钥: " + cipher.slice(0, 12));
   assert.strictEqual(await secret.decryptSecret(cipher), "pwd-中文-123");
 });
-await ta("设备标识变更后旧密文解不开、改回后可解", async () => {
+await ta("换设备标识不再影响解密（v3 主密钥随数据走）", async () => {
   const cipher = await secret.encryptSecret("secret-x");
   secret.setSecretSeed("sysid-other|D:/Other");
-  assert.strictEqual(await secret.decryptSecret(cipher), "", "换设备后应解不开");
+  assert.strictEqual(await secret.decryptSecret(cipher), "secret-x", "v3 主密钥随数据走：换设备标识不再影响解密");
   secret.setSecretSeed("sysid-abc|D:/SiYuan");
   assert.strictEqual(await secret.decryptSecret(cipher), "secret-x");
 });
