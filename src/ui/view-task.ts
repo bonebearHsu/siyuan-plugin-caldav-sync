@@ -122,7 +122,7 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
           ? `逾期 ${Math.abs(diffDays(due, today))} 天`
           : due.slice(5);
         return `
-<div class="cal-task ${isDone ? "is-done" : ""} ${overdue ? "is-overdue" : ""}" data-open="${k}" style="--cal-color:${cal?.color || "#64748b"}">
+<div class="cal-task ${isDone ? "is-done" : ""} ${overdue ? "is-overdue" : ""}" data-open="${k}" style="--cal-color:${calColorOf(ctx, it)}">
   <button class="cal-task-check" data-toggle="${k}" title="${isDone ? "标记未完成" : "标记完成"}">${isDone ? "✓" : ""}</button>
   <div class="cal-task-body">
     <div class="cal-task-title">${it.rrule ? "↻ " : ""}${escape(it.summary || "(无标题)")}
@@ -130,7 +130,7 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
     <div class="cal-task-meta">
       <span class="${overdue ? "cal-task-overdue" : ""}">${dueText}</span>
       ${it.description ? `<span class="cal-task-desc" title="${escape(it.description)}">${escape(it.description).slice(0, 40)}</span>` : ""}
-      <span class="cal-task-cal"><i style="background:${calColorOf(ctx, it)}"></i>${escape(cal?.displayName || "")}</span>
+      <span class="cal-task-cal"><i style="background:${cal?.color || "#64748b"}"></i>${escape(cal?.displayName || "")}</span>
     </div>
   </div>
 </div>`;
