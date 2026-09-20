@@ -397,6 +397,18 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     renderAll();
   };
 
+  // 勾选待办时就地更新可见视图，抑制本次 store 变更触发的整视图重渲染
+  // （否则会闪烁、且周/日视图滚动位置被重置到默认当前时间）
+  let suppressRerender = false;
+  function updateTodoCheckDOM(root: HTMLElement, key: string, done: boolean): void {
+    root
+      .querySelectorAll<HTMLElement>(`[data-toggle="${key}"]`)
+      .forEach((btn) => (btn.title = done ? "标记未完成" : "标记完成"));
+    root
+      .querySelectorAll<HTMLElement>(`[data-open="${key}"]`)
+      .forEach((el) => el.classList.toggle("is-done", done));
+  }
+
   // ---- 事件委托 ----
   on(app, "click", (ev) => {
     const t0 = ev.target as HTMLElement;
@@ -405,7 +417,17 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     const toggleEl = t0.closest("[data-toggle]") as HTMLElement | null;
     if (toggleEl && app.contains(toggleEl)) {
       const item = ctx.store.get(toggleEl.dataset.toggle!);
-      if (item) toggleTodoDone(ctx, item);
+      if (item && item.kind === "todo") {
+        const nextDone = item.percent !== 100;
+        item.percent = nextDone ? 100 : 0;
+        item.status = nextDone ? "COMPLETED" : "NEEDS-ACTION";
+        item.completedAt = nextDone ? new Date().toISOString().slice(0, 19) : undefined;
+        updateTodoCheckDOM(app, toggleEl.dataset.toggle!, nextDone);
+        suppressRerender = true;
+        void ctx.sync.updateItem(item).finally(() => (suppressRerender = false));
+        ev.stopPropagation();
+        return;
+      }
       ev.stopPropagation();
       return;
     }
@@ -502,7 +524,9 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
   // 捕获阶段监听滚动（视图容器自身也可滚）
   document.addEventListener("scroll", onReflow, true);
 
-  const unsub = ctx.store.onChange(() => renderAll());
+  const unsub = ctx.store.onChange(() => {
+    if (!suppressRerender) renderAll();
+  });
   renderAll();
 
   return {
