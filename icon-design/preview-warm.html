@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>插件图标设计稿 — 暖色浅底版（calCheck × CalDAV）</title>
+<style>
+  body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background:#faf7f2; margin:0; padding:32px; color:#3d3229; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { color:#8a7a68; margin:0 0 28px; font-size:13px; }
+  h2.sec { font-size:15px; color:#a06b32; margin:36px 0 14px; border-top:1px dashed #e4d4bf; padding-top:22px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; max-width:1080px; }
+  .card { background:#fff; border-radius:14px; padding:24px; box-shadow:0 1px 4px rgba(90,60,20,.10); text-align:center; }
+  .card h3 { font-size:15px; margin:0 0 6px; }
+  .card .tag { display:inline-block; font-size:12px; color:#c2651c; background:#fdeeda; border-radius:999px; padding:2px 10px; margin-bottom:14px; }
+  .card p { font-size:13px; color:#8a7a68; line-height:1.7; text-align:left; min-height:66px; }
+  .sizes { display:flex; align-items:flex-end; justify-content:center; gap:16px; margin-top:14px; }
+  .sizes figure { margin:0; }
+  .sizes figcaption { font-size:11px; color:#b3a48f; margin-top:4px; }
+  .old { max-width:280px; margin:28px auto 0; background:#fff; border-radius:14px; padding:20px; box-shadow:0 1px 4px rgba(90,60,20,.10); text-align:center; }
+  .old h3 { font-size:14px; color:#8a7a68; margin:0 0 10px; font-weight:normal; }
+</style>
+</head>
+<body>
+<h1>插件图标设计稿 · 暖色浅底版（512×512，含 64/32px 小尺寸验证）</h1>
+<p class="sub">结构不变：calCheck 描边日历 + CalDAV 双弧同步箭头 + 绿色勾徽章。配色改为浅暖渐变底 + 深暖棕描边 + 琥珀橙同步箭头，绿勾保留「完成」语义。</p>
+
+<h2 class="sec">三种结构 × 奶油底（Cream：#FFF8EE → #FFE7C8）</h2>
+<div class="grid">
+  <div class="card">
+    <span class="tag">推荐 ★</span>
+    <h3>方案 A · 日历 + 体内同步箭头 + 绿勾徽章</h3>
+    <img src="icon-warmA-cream.png" width="256" alt="A-cream">
+    <p>描边日历呼应入口图标，主体是琥珀色 CalDAV 循环箭头，右下绿勾徽章。深棕描边在浅底上对比充足，小尺寸清晰。</p>
+    <div class="sizes">
+      <figure><img src="icon-warmA-cream-64.png" width="64"><figcaption>64px</figcaption></figure>
+      <figure><img src="icon-warmA-cream-32.png" width="32"><figcaption>32px</figcaption></figure>
+    </div>
+  </div>
+  <div class="card">
+    <h3>方案 B · 日历 + 体内对勾 + 绿色同步徽章</h3>
+    <img src="icon-warmB-cream.png" width="256" alt="B-cream">
+    <p>主体几乎就是放大的入口图标（日历+对勾），CalDAV 收进右下绿徽章。插件内一致性最强。</p>
+    <div class="sizes">
+      <figure><img src="icon-warmB-cream-64.png" width="64"><figcaption>64px</figcaption></figure>
+      <figure><img src="icon-warmB-cream-32.png" width="32"><figcaption>32px</figcaption></figure>
+    </div>
+  </div>
+  <div class="card">
+    <h3>方案 C · 白底日历卡片（延续现版结构）</h3>
+    <img src="icon-warmC-cream.png" width="256" alt="C-cream">
+    <p>白色日历卡片 + 琥珀色同步箭头 + 绿勾徽章，最接近现版观感，只是整体换成暖色环境。</p>
+    <div class="sizes">
+      <figure><img src="icon-warmC-cream-64.png" width="64"><figcaption>64px</figcaption></figure>
+      <figure><img src="icon-warmC-cream-32.png" width="32"><figcaption>32px</figcaption></figure>
+    </div>
+  </div>
+</div>
+
+<h2 class="sec">方案 A 的另两套暖色调（结构相同，只换底色/描边/箭头）</h2>
+<div class="grid">
+  <div class="card">
+    <h3>奶油 Cream（上面那张，便于对比）</h3>
+    <img src="icon-warmA-cream.png" width="200" alt="A-cream">
+    <p>#FFF8EE → #FFE7C8，描边 #8A5A2E，箭头 #EF8A34。最浅最柔，接近思源浅色主题。</p>
+  </div>
+  <div class="card">
+    <h3>杏仁 Almond</h3>
+    <img src="icon-warmA-almond.png" width="200" alt="A-almond">
+    <p>#FDF1E0 → #F6DCBC，描边 #6E4A33，箭头 #D9722F。暖而不甜，底色略深、层次更稳。</p>
+  </div>
+  <div class="card">
+    <h3>蜜桃 Peach</h3>
+    <img src="icon-warmA-peach.png" width="200" alt="A-peach">
+    <p>#FFF3E8 → #FFD6B4，描边 #A8542A，箭头 #F26B2A。粉橙调更活泼，渐变最明显。</p>
+  </div>
+</div>
+
+<div class="old">
+  <h3>现版 icon.png（对照）</h3>
+  <img src="../icon.png" width="128" alt="现版图标">
+</div>
+</body>
+</html>

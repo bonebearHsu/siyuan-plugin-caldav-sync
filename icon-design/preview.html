@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>插件图标设计稿 — calCheck × CalDAV</title>
+<style>
+  body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background:#f5f6fa; margin:0; padding:32px; color:#1f2329; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { color:#6b7280; margin:0 0 28px; font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; max-width:1080px; }
+  .card { background:#fff; border-radius:14px; padding:24px; box-shadow:0 1px 4px rgba(0,0,0,.08); text-align:center; }
+  .card h2 { font-size:16px; margin:0 0 6px; }
+  .card .tag { display:inline-block; font-size:12px; color:#2f6bff; background:#eaf1ff; border-radius:999px; padding:2px 10px; margin-bottom:14px; }
+  .card p { font-size:13px; color:#6b7280; line-height:1.7; text-align:left; min-height:66px; }
+  .sizes { display:flex; align-items:flex-end; justify-content:center; gap:16px; margin-top:14px; }
+  .sizes figure { margin:0; }
+  .sizes figcaption { font-size:11px; color:#9aa1ac; margin-top:4px; }
+  .old { max-width:280px; margin:28px auto 0; background:#fff; border-radius:14px; padding:20px; box-shadow:0 1px 4px rgba(0,0,0,.08); text-align:center; }
+  .old h2 { font-size:14px; color:#6b7280; margin:0 0 10px; font-weight:normal; }
+</style>
+</head>
+<body>
+<h1>插件图标设计稿（512×512，含 64/32px 小尺寸验证）</h1>
+<p class="sub">设计语言对齐左侧入口图标 calCheck（描边日历 + 勾）与 refreshThin（CalDAV 双弧同步箭头），保留绿色勾徽章的任务语义与蓝紫渐变底的品牌识别。</p>
+<div class="grid">
+  <div class="card">
+    <span class="tag">推荐 ★</span>
+    <h2>方案 A · 日历 + 体内同步箭头 + 绿勾徽章</h2>
+    <img src="icon-A.png" width="256" alt="方案A">
+    <p>描边日历呼应入口图标；日历主体换成 CalDAV 双弧循环箭头，一眼读出「同步」；右下绿勾徽章延续任务/完成的既有识别。三元素各占一角，语义最完整。</p>
+    <div class="sizes">
+      <figure><img src="icon-A-64.png" width="64"><figcaption>64px</figcaption></figure>
+      <figure><img src="icon-A-32.png" width="32"><figcaption>32px</figcaption></figure>
+    </div>
+  </div>
+  <div class="card">
+    <h2>方案 B · 日历 + 体内对勾 + 绿色同步徽章</h2>
+    <img src="icon-B.png" width="256" alt="方案B">
+    <p>主体几乎就是放大的入口图标（日历+对勾），CalDAV 收进右下绿色徽章里。插件内一致性最强，但徽章内箭头在小尺寸下略糊。</p>
+    <div class="sizes">
+      <figure><img src="icon-B-64.png" width="64"><figcaption>64px</figcaption></figure>
+      <figure><img src="icon-B-32.png" width="32"><figcaption>32px</figcaption></figure>
+    </div>
+  </div>
+  <div class="card">
+    <h2>方案 C · 延续现版（白色实底日历）</h2>
+    <img src="icon-C.png" width="256" alt="方案C">
+    <p>保持现版白色实底日历 + 蓝色格点的结构，仅把格点换成蓝色同步箭头。老用户迁移成本最低，但「描边风」与插件内图标风格略有割裂。</p>
+    <div class="sizes">
+      <figure><img src="icon-C-64.png" width="64"><figcaption>64px</figcaption></figure>
+      <figure><img src="icon-C-32.png" width="32"><figcaption>32px</figcaption></figure>
+    </div>
+  </div>
+</div>
+<div class="old">
+  <h2>现版 icon.png（对照）</h2>
+  <img src="../icon.png" width="128" alt="现版图标">
+</div>
+</body>
+</html>
