@@ -81,30 +81,12 @@ export function addDays(stamp: LocalStamp, days: number): LocalStamp {
   return isDateOnly(stamp) ? dateStampOfMs(d.getTime()) : stampOfMs(d.getTime());
 }
 
-export function addMonths(stamp: LocalStamp, n: number): LocalStamp {
-  const d = parseLocalStamp(stamp);
-  const day = d.getDate();
-  d.setDate(1);
-  d.setMonth(d.getMonth() + n);
-  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(day, last));
-  return isDateOnly(stamp) ? dateStampOfMs(d.getTime()) : stampOfMs(d.getTime());
-}
-
 export function isDateOnly(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
 export function startOfDay(stamp: LocalStamp): LocalStamp {
   return stamp.slice(0, 10);
-}
-
-export function endOfDay(stamp: LocalStamp): LocalStamp {
-  return isDateOnly(stamp) ? stamp : stamp.slice(0, 10) + "T23:59:59";
-}
-
-export function weekdayCode(d: Date): string {
-  return WEEKDAYS[d.getDay()];
 }
 
 export function weekdayIndexOfCode(code: string): number {

@@ -174,8 +174,6 @@ export async function discoverCalendars(
   return { principal: principal || undefined, home, calendars };
 }
 
-export interface FetchedItem extends CalItem {}
-
 /** 全量拉取一个日历（calendar-query 时间窗） */
 export async function fetchCalendarItems(
   cal: CalCalendar,

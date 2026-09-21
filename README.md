@@ -1,40 +1,53 @@
-# CalDAV Calendar & Tasks for SiYuan
+[English](README_en_US.md) | 简体中文
 
-Manage calendars and todos on your CalDAV server (Radicale / Nextcloud / Baikal / DAViCal / Synology / iCloud with app password) directly inside SiYuan: **two-way sync**, **month / week / day views**, **task view**, **full editing**, and one-click insertion of today's schedule into your daily note.
+# CalDAV日历任务
 
-## Features
+在思源笔记里直接管理 CalDAV 服务器上的日历与待办：**双向同步**、**月/周/日视图**、**任务视图**、**完整编辑能力**，并支持把今日日程与待办一键插入当天日记。
 
-- **Two-way sync**: local edits are pushed back (merged upload), server changes pulled periodically (default every 15 min) and on demand
-- **Incremental sync**: uses `sync-collection` + sync-token when available, falls back to `PROPFIND` + `calendar-multiget`
-- **Four views**: month, week (time grid + current-time line), day, and task view (grouped by overdue / today / tomorrow / next 7 days / later / no date)
-- **Full editing**: title, calendar, all-day, start/end, recurrence (day/week/month/year + interval + weekdays + end conditions), reminders, location, tags, notes, priority, status, completion
-- **Multiple calendars**: color-coded, individually toggleable, default calendar for new items
-- **Recurring events**: RRULE expansion with EXDATE support
-- **Daily note integration**: insert today's schedule & todos into the daily note (only items actually due today; todos are placed by due date; the note is opened afterwards and repeated clicks update the previously inserted section instead of appending again)
-- **Two request channels**: SiYuan kernel proxy (no CORS) by default, automatic fallback to direct browser requests
+支持 Radicale、Nextcloud、Baikal、DAViCal、Synology Calendar、iCloud（应用专用密码）等标准 CalDAV 服务。
 
-## Install
+## 特性
 
-1. Install from SiYuan marketplace ("Settings → Marketplace → Downloaded"), or unzip `package.zip` into `workspace/data/plugins/siyuan-plugin-caldav-sync/`
-2. Restart SiYuan, click the "Calendar & Tasks" dock icon on the left; view buttons open the calendar tab in the main window
+- **双向同步**：本地改动自动回写服务端（合并上传），服务端改动定时拉取（默认 15 分钟）
+- **增量同步**：优先使用 `sync-collection` + sync-token，不支持时自动回退 `PROPFIND` + `calendar-multiget`
+- **五种视图**：年视图（12 个月网格，标注有日程/任务的日期，点击月/日可跳转）、月视图、周视图（时间轴 + 当前时间线）、日视图、任务视图（下拉筛选风格，参考了思源插件「任务笔记管理」：今日/明日/未来七天/本周/未来/过期/过去七天/所有未完成/无日期/今日已完成/昨日已完成/已完成，带计数与快速添加）
+- **事件排序**：右上「排序」下拉支持「按事件开始时间排序 / 按事件结束时间排序」，影响月视图单元格与周视图全天区的排列
+- **完整编辑**：标题、日历、全天、开始/结束、重复规则（天/周/月/年 + 间隔 + 按星期 + 结束条件）、提醒、地点、标签、备注、优先级、状态、完成度
+- **多日历**：颜色区分、单独启用/禁用、可指定默认新建日历
+- **重复事件**：基于 RRULE 展开，支持 EXDATE 排除
+- **日记联动**：一键把今日日程与到期待办插入当天日记文档（只取真正落在今天的条目；待办按到期日归属；写完自动打开该日记并提示结果，重复点击是更新上一次插入的小节，不会重复追加）
+- **两种请求通道**：默认走思源内核代理（无 CORS 限制），失败自动降级浏览器直连
 
-## Configuration
+## 安装
 
-"Settings → CalDAV Sync" or the gear icon on the panel:
+1. 思源「设置 → 集市 → 已下载」中安装本插件（或手动把 `package.zip` 解压到 `工作空间/data/plugins/siyuan-plugin-caldav-sync/`）
+2. 重启思源，点击左侧 Dock「日历任务管理」图标打开面板。顶部标题下是一行 5 个按钮：
+   - **新增事件、任务**（下拉）：新增事件 / 新增任务，弹出编辑对话框
+   - **排序**（下拉）：按事件开始时间 / 结束时间排序
+   - **日历视图**：在思源主窗口以新页签打开日历（年/月/周/日 可在页签顶部切换）
+   - **任务视图**：以新页签打开任务视图
+   - **刷新**：立即重新同步
+3. 在右侧日历页签顶部，点击「年 / 月 / 周 / 日」可在四种日历展示间切换
 
-| Option | Description |
+## 配置
+
+「设置 → CalDAV 同步」或点击面板左下角齿轮：
+
+| 项 | 说明 |
 | --- | --- |
-| Server URL | e.g. `http://192.168.1.10:5232/`, `https://dav.example.com/` |
-| Username / Password | Basic auth; use an app-specific password for iCloud / Nextcloud |
-| Calendar path | Optional. Leave empty for auto-discovery |
-| Request channel | Auto (kernel proxy first) / kernel proxy / direct |
-| Auto-sync interval | Minutes, 0 disables |
-| Conflict policy | Server-first / local-first on 412 conflicts |
-| Sync range | Past N days / future N days |
+| 服务器地址 | 如 `http://192.168.1.10:5232/`、`https://dav.example.com/` |
+| 用户名 / 密码 | Basic 认证；iCloud / Nextcloud 请用应用专用密码 |
+| 日历路径 | 可选。留空自动发现；也可直接填集合地址 |
+| 请求通道 | 自动（内核代理优先）/ 内核代理 / 浏览器直连 |
+| 自动同步间隔 | 分钟，0 关闭 |
+| 冲突策略 | 服务端优先 / 本地优先（412 冲突时） |
+| 同步范围 | 过去 N 天、未来 N 天 |
 
-Click "Test Connection", then "Discover Calendars", pick the calendars you want and save.
+填写后先点「测试连接」，成功再点「发现日历」，勾选需要的日历并保存。
 
-### Radicale example
+### Radicale 示例
+
+Radicale 默认使用 `htpasswd` 认证，明文 Basic 即可连通：
 
 ```ini
 [auth]
@@ -46,49 +59,61 @@ htpasswd_encryption = plain
 hosts = 0.0.0.0:5232
 ```
 
-If direct requests fail with CORS errors, set the channel to "SiYuan kernel proxy".
+若浏览器直连报 CORS 错误，把「请求通道」设为「思源内核代理」。
 
-## Data & conflicts
+## 数据与冲突
 
-- Data is stored in plugin private storage `workspace/data/storage/siyuan-plugin-caldav-sync/caldav-sync-dock.json`, never written into notes
-- Server ICS raw text is preserved on edit so unmanaged properties (e.g. ATTENDEE) survive round-trips
-- Uploads carry `If-Match` etags; a 412 response is resolved by the configured conflict policy
-- Deletions are propagated to the server (local tombstone first, removed after sync)
+- 主数据（日历与条目缓存）存放在插件私有存储 `工作空间/data/storage/siyuan-plugin-caldav-sync/caldav-sync-dock.json`，不写入笔记文档
+- 条目同时保存服务端 ICS 原文，编辑时在其基础上修改，尽量保留本插件不直接编辑的属性（如 ATTENDEE）
+- 上传带 `If-Match: etag`，服务端已变更时返回 412：
+  - **服务端优先**：丢弃本地改动，下次拉取覆盖
+  - **本地优先**：强制覆盖服务端
+- 删除会在服务端同步删除（本地先标记 `deleted`，同步后移除）
 
-## Commands (bind hotkeys in "Settings → Hotkeys")
+## 快捷键与命令
 
-- `Sync CalDAV Now`
-- `New Todo`
-- `Open Calendar & Tasks`
-- `Insert Today's Schedule into Daily Note`
+在思源「设置 → 快捷键」中搜索以下命令绑定：
 
-## Reminders
+- `立即同步 CalDAV`
+- `新建待办`
+- `打开日历与任务`
+- `把今日日程与待办插入日记`
 
-- Only items **with a reminder time** (a VALARM entry, set via the editor's reminder dropdown) will notify. Items without one never fire — if nothing happens, check *Settings → Reminders* for "items with a reminder time".
-- When a reminder is due, three channels fire together: an **in-app reminder card** (visible whenever the SiYuan window is on screen), a desktop notification (best effort), and a SiYuan notification-center message (so it is still there when you come back to the window). The card also offers "Open" and "Snooze 5 min".
-- Verify the channel any time via **Settings → Reminders → Test reminder**.
-- Why desktop notifications may not show up: Electron grants notification permission silently — there is deliberately no permission dialog — and on Windows a portable SiYuan has no Start Menu shortcut, so the OS discards toasts without raising an error. In that case the in-app card is the channel you can rely on.
-- A reminder missed by more than 5 minutes is skipped (no backfill for old items); within 5 minutes it is fired once, so starting SiYuan shortly after a reminder still notifies.
+## 提醒
 
-## Notes
+- 只对**设了提醒时间**的条目提醒（VALARM，在编辑弹窗的「提醒」下拉里选择）。没设提醒时间的条目不会响 —— 没反应时先到「设置 → 提醒」看「带提醒时间的条目」是不是 0。
+- 到点同时走三条通道：**应用内提醒卡片**（思源窗口可见时一定看得见，带「打开」与「稍后 5 分钟」）、桌面系统通知（尽力而为）、思源通知中心消息（窗口切到后台时回来还能看到）。
+- 随时可用「设置 → 提醒 → 测试提醒」验证通道是否可用；同一行还会显示已排程条数与带提醒时间的条目数。
+- 为什么系统通知可能不出现：Electron 内核**默认放行通知权限且不提供授权窗口**（所以不会弹授权框，这是设计而非故障）；Windows 上便携版思源因缺少开始菜单快捷方式，系统会直接丢弃 toast 且不报错。这两种情况下以应用内提醒卡片为准。
+- 提醒时刻过去超过 5 分钟的不再补（避免一启动就轰炸历史条目）；5 分钟内会补发一次，因此提醒后不久才打开思源仍能收到。
 
-- Passwords are stored as AES-GCM ciphertext; the master key lives alongside the plugin data, so **SiYuan cloud sync carries it to your other devices** and you never re-enter the password. Note this is encryption, not a vault — anyone who can read the plugin data can decrypt it. Use self-hosted / LAN servers or restricted accounts
-- Times are written as UTC in ICS; floating times are interpreted in the local timezone
-- Mobile (Android / iOS) supported: SiYuan has no tab bar on mobile and `openTab` is a no-op there, so the panel opens as a full-screen layer instead of a tab. Long-press an item to bring up the edit/delete menu (right-click on desktop)
-  - On phones the calendar cells show the title only (time + title do not fit); narrowing the desktop window still keeps the time
-  - Mobile WebViews block cleartext-HTTP direct requests (`Failed to fetch`); when a direct request fails at the network level the plugin falls back to the SiYuan kernel proxy automatically — unrelated to your password
+## 注意
 
-## Development
+- 密码以 AES-GCM 密文保存；主密钥随插件数据一同保存，所以**思源云同步会把它带到你的其它设备**，多端无需重复输入。注意这是「加密」而非「保险箱」——只要能读到插件数据就能解开，建议仅在自托管 / 局域网环境使用，或为 CalDAV 服务单独创建受限账号
+- 本插件使用 UTC 时间写入 ICS，浮动时间按本地时区解释，跨时区协作场景请在服务端确认显示是否符合预期
+- 移动端（Android / iOS）已支持：思源移动端没有页签栏、`openTab` 为空实现，因此手机上面板以**全屏弹层**呈现，并复用同一套视图与数据；条目改「长按」呼出编辑/删除菜单（桌面端为右键）
+  - 手机日历格里只显示标题（时间与标题挤在一起看不清）；桌面端把窗口拖窄仍保留时间
+  - 手机端 WebView 会拦掉明文 HTTP 的浏览器直连（报 `Failed to fetch`），直连在网络层失败时插件会自动改走思源内核代理，与密码无关
+  - 手机上的入口：右上「插件」菜单里的「日历与任务」，或插件侧栏抽屉中的「日历视图 / 任务视图」按钮
+  - iPhone 上长按不会触发系统菜单，但长按手势本身可用（已显式实现，不依赖 `contextmenu`）
+
+## 开发
 
 ```bash
 npm i
-cp .env.example .env   # point VITE_SIYUAN_WORKSPACE_PATH at your SiYuan workspace
-npm run build          # produces package.zip
-npm test               # core unit tests + loader/UI smoke (jsdom)
-npm run e2e:radicale   # or: start a local Radicale, then
-npm run test:e2e       # real CalDAV end-to-end against Radicale
+cp .env.example .env   # 设置 VITE_SIYUAN_WORKSPACE_PATH 指向思源工作空间
+npm run build          # 产出 package.zip
+npm test               # 核心单测 + 模拟思源 loader 的 UI 冒烟（jsdom）
+npm run test:e2e       # 真实 CalDAV 端到端（自动拉起本地 Radicale，需 pip install radicale）
 ```
 
-## License
+测试覆盖：
+
+- `test/core.test.mjs`：ICS 解析/序列化、RRULE 展开、EXDATE、store 合并策略
+- `test/loader.test.mjs`：模拟思源加载 dist/index.js → Dock 一行5按钮(新增/排序/日历视图/任务视图/刷新)/主窗口页签/命令注册 → 年/月/周/日/任务视图渲染与切换 → 排序/编辑弹窗开关
+- `test/mobile.test.mjs`：模拟移动端前端（`getFrontend() === "mobile"`）→ 顶栏入口注册 / 面板改走全屏 Dialog / 不调用 `openTab` / 视图切换复用单例 / 触摸长按呼出条目菜单 / 隐藏条目时间 / 工具栏右对齐 / 页脚按钮不换行 / 窄屏样式与 `frontends` 声明
+- `test/e2e.test.mjs`：真实 Radicale 链路（连接/发现/MKCALENDAR/上传/拉取/编辑/412 冲突/sync-token 增量/待办/删除）
+
+## 许可
 
 AGPL-3.0 license

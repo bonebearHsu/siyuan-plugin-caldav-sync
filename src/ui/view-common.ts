@@ -33,22 +33,6 @@ export function keyOfItem(it: CalItem): string {
   return it.recurId ? `${it.uid}|${it.recurId}|${it.kind}` : `${it.uid}|${it.kind}`;
 }
 
-/** 条目 chip 公共结构（周视图全天行等紧凑单行场景） */
-export function chipHtml(it: CalItem, occ: string, calColor: string): string {
-  const k = keyOfItem(it);
-  const done = it.kind === "todo" && it.percent === 100;
-  const timeLabel = it.allDay ? "" : `<span class="cal-chip-time">${occ.slice(11, 16)}</span>`;
-  if (it.kind === "todo") {
-    return `<div class="cal-chip cal-chip-todo ${done ? "is-done" : ""}" data-open="${k}" style="--cal-color:${calColor}">
-      <button class="cal-chip-check" data-toggle="${k}" title="${done ? "标记未完成" : "标记完成"}">✓</button>
-      <span class="cal-chip-title">${escape(it.summary || "(无标题)")}</span>
-    </div>`;
-  }
-  return `<div class="cal-chip ${done ? "is-done" : ""}" data-open="${k}" style="--cal-color:${calColor}">
-    ${timeLabel}<span class="cal-chip-title">${repeatMark(it)}${escape(it.summary || "(无标题)")}</span>
-  </div>`;
-}
-
 /**
  * 月视图专用 chip：两行显示。
  * - 第一行：复选框（待办）+ 标题；标题单行，超出直接裁切（无省略号）。

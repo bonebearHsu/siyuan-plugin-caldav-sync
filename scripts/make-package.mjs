@@ -19,6 +19,7 @@ const files = [
   "plugin.json",
   "README.md",
   "README_zh_CN.md",
+  "README_en_US.md",
   ["icon.png", "icon.png"],
   ["preview.png", "preview.png"],
   ["src/i18n/en_US.json", "i18n/en_US.json"],

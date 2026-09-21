@@ -46,10 +46,6 @@ export function setSecretSeed(value: string): void {
   keyCache.delete("v2");
 }
 
-export function hasSecretSeed(): boolean {
-  return !!seed;
-}
-
 /**
  * 注入 v3 主密钥（来自持久化数据）。
  * stored 为空时尝试 localStorage 镜像；都没有则保持为空，等首次加密时随机生成。
@@ -76,10 +72,6 @@ export function adoptKeyring(stored?: string, sink?: (value: string) => void): v
 /** 当前主密钥（未生成时为空串）；store 用它写进持久化数据 */
 export function getKeyring(): string {
   return keyring;
-}
-
-export function hasKeyring(): boolean {
-  return !!keyring;
 }
 
 function webcrypto(): Crypto | undefined {

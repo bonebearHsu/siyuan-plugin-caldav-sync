@@ -315,11 +315,4 @@ export class SyncEngine {
   }
 }
 
-export function rangeWindowFor(store: CalStore): { startMs: number; endMs: number } {
-  return {
-    startMs: Date.now() - store.settings.pastDays * 86400000,
-    endMs: Date.now() + store.settings.futureDays * 86400000
-  };
-}
-
 export { dateStampOfMs };
