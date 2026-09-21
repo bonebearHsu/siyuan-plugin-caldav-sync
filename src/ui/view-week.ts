@@ -95,7 +95,7 @@ export function renderWeekView({ ctx, viewEl, occurrences }: ViewArgs, days: num
             : "";
           return `<div class="cal-wk-block ${b.it.kind === "todo" ? "cal-wk-block-todo" : ""} ${done ? "is-done" : ""}" data-open="${k}"
             style="--cal-color:${calColorOf(ctx, b.it)};top:${top}%;height:${height}%">
-            <div class="cal-wk-block-head">${check}<div class="cal-wk-block-title">${repeatMark(b.it)}${escape(b.it.summary || "(无标题)")}</div></div>
+            <div class="cal-wk-block-head">${check}<div class="cal-wk-block-title">${repeatMark(b.it)}${escape(b.it.summary || "(无标题)")}${b.it.location ? `<span class="cal-wk-block-loc-inline">📍 ${escape(b.it.location)}</span>` : ""}</div></div>
             <div class="cal-wk-block-time">${startLabel}</div>
             ${b.it.location ? `<div class="cal-wk-block-loc">📍 ${escape(b.it.location)}</div>` : ""}
           </div>`;

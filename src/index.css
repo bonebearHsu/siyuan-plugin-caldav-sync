@@ -663,6 +663,8 @@
 .cal-wk-block-time { color: var(--caldav-text-2); font-size: 10.5px; }
 .cal-wk-block-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .cal-wk-block-loc { color: var(--caldav-text-2); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; }
+/* 桌面端地点仍用独立行（.cal-wk-block-loc）；行内版只给移动端用（见触摸形态一节） */
+.cal-wk-block-loc-inline { display: none; color: var(--caldav-text-2); font-weight: 400; }
 
 .cal-wk-nowline {
   position: absolute;
@@ -3052,6 +3054,24 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 /* 月视图恢复时间显示：卡片已是两行布局，时间单独一行不会被标题挤掉 */
 .caldav-touch .cal-month-cell .cal-chip-time,
 .caldav-mobile-dialog .cal-month-cell .cal-chip-time { display: inline; }
+
+/* ---- 触摸端：周/日视图格子内不截断 ----
+   手机上格子又窄又矮，标题一截「固…」基本等于没显示。
+   规则：标题不省略、不锁行，格子内能写多少写多少（超出部分被格子 overflow:hidden 裁掉）；
+   地点降级为行内文本紧跟名称后面（优先级低于名称，格子满了先裁地点）。
+   独立行版 .cal-wk-block-loc 在触摸端隐藏，桌面端不受影响。 */
+.caldav-touch .cal-wk-block-title,
+.caldav-mobile-dialog .cal-wk-block-title {
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+}
+.caldav-touch .cal-wk-block-head,
+.caldav-mobile-dialog .cal-wk-block-head { align-items: flex-start; }
+.caldav-touch .cal-wk-block-loc,
+.caldav-mobile-dialog .cal-wk-block-loc { display: none; }
+.caldav-touch .cal-wk-block-loc-inline,
+.caldav-mobile-dialog .cal-wk-block-loc-inline { display: inline; }
 
 /* Dock 工具栏在触摸端整体放大一档：命中区更友好，宽高比也更协调 */
 .caldav-touch .caldav-dock-actions { gap: 8px; }
