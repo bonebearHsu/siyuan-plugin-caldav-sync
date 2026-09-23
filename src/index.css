@@ -3073,6 +3073,23 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 .caldav-touch .cal-wk-block-loc-inline,
 .caldav-mobile-dialog .cal-wk-block-loc-inline { display: inline; }
 
+/* ---- 触摸端：周/日视图空间收紧 ----
+   手机屏幕宽度有限，事件块与背景时间线格子的间隙、左侧时间 gutter 的留白
+   都收一档，争取每个格子多显示一个字。日视图共用同一套类，一并生效。 */
+.caldav-touch .cal-wk-gutterhead,
+.caldav-mobile-dialog .cal-wk-gutterhead { flex: 0 0 42px; }
+.caldav-touch .cal-wk-main,
+.caldav-mobile-dialog .cal-wk-main { grid-template-columns: 42px 1fr; }
+.caldav-touch .cal-wk-hour span,
+.caldav-mobile-dialog .cal-wk-hour span { right: 2px; }
+.caldav-touch .cal-wk-block,
+.caldav-mobile-dialog .cal-wk-block {
+  left: 1px;
+  right: 2px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
 /* Dock 工具栏在触摸端整体放大一档：命中区更友好，宽高比也更协调 */
 .caldav-touch .caldav-dock-actions { gap: 8px; }
 .caldav-touch .caldav-dock-act { height: 42px; }
