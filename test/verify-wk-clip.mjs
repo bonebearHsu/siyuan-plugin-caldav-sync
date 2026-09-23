@@ -128,6 +128,23 @@ const MEASURE = `(() => {
   const lines = lh ? Math.round(tr.height / lh) : 0;
   // inline 地点必须在标题容器内、且位于标题文本之后
   const inlineInTitle = inline ? title.contains(inline) && [...title.childNodes].some(n => n.nodeType === 3 && n.textContent.includes(${JSON.stringify(longTitle)})) : false;
+  // 块内容左边界（不含 padding/border）
+  const blockStyle = block ? getComputedStyle(block) : null;
+  const contentLeft = block && blockStyle
+    ? br.left + (parseFloat(blockStyle.paddingLeft) || 0) + (parseFloat(blockStyle.borderLeftWidth) || 0)
+    : null;
+  // 用 Range 取标题文本的每一行，检查第二行是否对齐到块内容最左侧
+  let secondLineLeft = null;
+  if (title) {
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    const rects = Array.from(range.getClientRects());
+    const lineRects = [];
+    for (const r of rects) {
+      if (!lineRects.length || Math.abs(r.top - lineRects[lineRects.length - 1].top) > 2) lineRects.push(r);
+    }
+    secondLineLeft = lineRects[1] ? +lineRects[1].left.toFixed(1) : null;
+  }
   return {
     whiteSpace: cs ? cs.whiteSpace : null,
     textOverflow: cs ? cs.textOverflow : null,
@@ -141,7 +158,13 @@ const MEASURE = `(() => {
     blockH: br ? +br.height.toFixed(1) : null,
     titleClippedByBlock: tr && br ? tr.bottom > br.bottom - 1 : null,
     inlineInTitle,
-    headAlign: getComputedStyle(document.querySelector('.cal-wk-block-head')).alignItems
+    headAlign: getComputedStyle(document.querySelector('.cal-wk-block-head')).alignItems,
+    // 悬挂对齐：浮动圆圈应让标题第二行起对齐到块内容最左侧
+    headDisplay: getComputedStyle(document.querySelector('.cal-wk-block-head')).display,
+    checkFloat: getComputedStyle(document.querySelector('.cal-chip-check')).cssFloat,
+    contentLeft,
+    secondLineLeft,
+    lines
   };
 })()`;
 
@@ -154,7 +177,11 @@ console.log(JSON.stringify(v, null, 2));
 
 const ok = v.whiteSpace === "normal" && v.textOverflow === "clip"
   && v.standaloneDisplay === "none" && v.inlineDisplay === "inline"
-  && v.titleLines >= 2 && v.inlineInTitle && v.headAlign === "flex-start";
-console.log(ok ? "[wkclip] PASS：标题换行不截断，地点行内跟随且优先级低于名称" : "[wkclip] FAIL");
+  && v.titleLines >= 2 && v.inlineInTitle
+  && v.headDisplay === "block" && v.checkFloat === "left"
+  && v.secondLineLeft !== null && Math.abs(v.secondLineLeft - v.contentLeft) < 2;
+console.log(ok
+  ? "[wkclip] PASS：标题换行不截断，第二行起对齐到块最左侧，地点行内跟随"
+  : "[wkclip] FAIL");
 cleanup();
 process.exit(ok ? 0 : 1);

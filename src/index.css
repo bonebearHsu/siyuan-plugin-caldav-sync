@@ -3067,7 +3067,18 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   overflow-wrap: break-word;
 }
 .caldav-touch .cal-wk-block-head,
-.caldav-mobile-dialog .cal-wk-block-head { align-items: flex-start; }
+.caldav-mobile-dialog .cal-wk-block-head {
+  display: block;
+}
+.caldav-touch .cal-wk-block-head .cal-chip-check,
+.caldav-mobile-dialog .cal-wk-block-head .cal-chip-check {
+  float: left;
+  margin-right: 4px;
+  margin-top: 1px;
+}
+/* 标题改为 inline：文本环绕浮动圆圈，第二行起对齐到块最左侧 */
+.caldav-touch .cal-wk-block-title,
+.caldav-mobile-dialog .cal-wk-block-title { display: inline; }
 .caldav-touch .cal-wk-block-loc,
 .caldav-mobile-dialog .cal-wk-block-loc { display: none; }
 .caldav-touch .cal-wk-block-loc-inline,
