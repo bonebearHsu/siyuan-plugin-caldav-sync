@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-caldav-sync",
   "author": "bonebearHsu",
   "url": "https://github.com/bonebearHsu/siyuan-plugin-caldav-sync",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "minAppVersion": "3.1.0",
   "backends": ["all"],
   "frontends": ["desktop", "desktop-window", "browser-desktop", "mobile", "browser-mobile"],
