@@ -772,10 +772,39 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
     (el.querySelector(".caldav-progress-val") as HTMLElement).textContent = percent.value + "%";
   });
 
-  // AI 识别占位：聚焦标题并给出提示
+  // 把识别结果写入日期/时间字段并同步显示
+  const applyParsed = (p: ParsedDateTime): void => {
+    f("startDate").value = p.startDate;
+    f("startDate").dispatchEvent(new Event("input"));
+    if (p.startTime) { f("startTime").value = p.startTime; syncTimeText("startTime"); }
+    if (p.endDate) { f("endDate").value = p.endDate; f("endDate").dispatchEvent(new Event("input")); }
+    if (p.endTime) { f("endTime").value = p.endTime; syncTimeText("endTime"); }
+  };
+
+  // 粘贴自动识别日期：勾选开关后，在标题框粘贴含日期文本即抽取填入对应字段
+  const summaryInput = f("summary");
+  summaryInput.addEventListener("paste", (e: ClipboardEvent) => {
+    if (!f("aiParse").checked) return; // 未勾选 → 走原生粘贴
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    if (!text) return;
+    const inp = e.target as HTMLInputElement;
+    const s = inp.selectionStart ?? inp.value.length;
+    const en = inp.selectionEnd ?? inp.value.length;
+    inp.setRangeText(text, s, en, "end"); // 标题保留原文，仅抽取日期填入字段
+    e.preventDefault();
+    const p = parseDateTimeFromText(text);
+    if (p) applyParsed(p);
+  });
+
+  // ✨ 按钮：手动对当前标题触发一次识别（不依赖开关）
   el.querySelector('[data-action="ai-parse"]')?.addEventListener("click", () => {
-    errEl.textContent = "AI 自动识别功能需接入思源 AI 能力，当前为占位入口。";
-    setTimeout(() => (errEl.textContent = ""), 2500);
+    const p = parseDateTimeFromText(f("summary").value);
+    if (!p) {
+      errEl.textContent = "未在标题中识别到日期时间。";
+      setTimeout(() => (errEl.textContent = ""), 2500);
+      return;
+    }
+    applyParsed(p);
   });
 
   // 自定义提醒时间：多行列表 + 常用组合预设
@@ -924,4 +953,137 @@ function stampNow(): string {
   const d = new Date();
   const p = (n: number) => (n < 10 ? "0" + n : String(n));
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+interface ParsedDateTime {
+  startDate: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+}
+
+const WEEKDAY_NUM: Record<string, number> = { 日: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 };
+
+function ymdStr(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function addDaysDate(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+/**
+ * 从自由文本识别日期时间（中文常见表达），用于编辑器「粘贴自动识别日期」。
+ * 支持：今天/明天/后天、周几（含下周/本周，排除「每」前缀的重复表达）、
+ *       年月日 / 月日 / 公历节日；时间支持 14:00、9点、9点半、下午3点 等。
+ * 仅识别到日期则只填日期；识别到时间则填开始（结束默认 +1 小时）；
+ * 若一段文本含两个时间（如「14点到16点」）则分别作为起止。返回 null 表示啥都没识别到。
+ */
+function parseDateTimeFromText(text: string): ParsedDateTime | null {
+  const base = new Date();
+  const startOfToday = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  let dateObj: Date | null = null;
+
+  // 1) 相对日词
+  const REL: [string, number][] = [
+    ["今天", 0], ["今日", 0], ["明日", 1], ["明天", 1], ["大后天", 3], ["后天", 2],
+    ["昨日", -1], ["昨天", -1], ["今", 0],
+  ];
+  for (const [k, off] of REL) {
+    if (text.includes(k)) { dateObj = addDaysDate(base, off); break; }
+  }
+
+  // 2) 周几（排除「每」前缀的重复表达）
+  if (!dateObj) {
+    const WD = /(每)?\s*(下|本|这|上)?\s*(周|星期|礼拜)\s*([0-6一二三四五六日])/g;
+    let m: RegExpExecArray | null;
+    while ((m = WD.exec(text))) {
+      if (m[1] === "每") continue;
+      const raw = m[4];
+      let w: number;
+      if (WEEKDAY_NUM[raw] !== undefined) w = WEEKDAY_NUM[raw];
+      else { const n = +raw; w = n === 7 ? 0 : n; }
+      const days = (w - base.getDay() + 7) % 7; // 未来最近的该星期几
+      dateObj = addDaysDate(base, days);
+      break;
+    }
+  }
+
+  // 3) 年月日
+  if (!dateObj) {
+    const y = /(\d{4})[年./\-](\d{1,2})[月./\-](\d{1,2})(?:日|号)?/.exec(text);
+    if (y) dateObj = new Date(+y[1], +y[2] - 1, +y[3]);
+  }
+  // 4) 月日（今年；已过则顺延明年）
+  if (!dateObj) {
+    const md = /(\d{1,2})[月./\-](\d{1,2})(?:日|号)?/.exec(text);
+    if (md) {
+      const d = new Date(base.getFullYear(), +md[1] - 1, +md[2]);
+      if (d.getTime() < startOfToday.getTime()) d.setFullYear(base.getFullYear() + 1);
+      dateObj = d;
+    }
+  }
+  // 5) 公历节日
+  if (!dateObj) {
+    const FEST: [string, number, number][] = [
+      ["元旦", 1, 1], ["情人节", 2, 14], ["妇女节", 3, 8], ["劳动节", 5, 1],
+      ["儿童节", 6, 1], ["国庆", 10, 1], ["圣诞节", 12, 25],
+    ];
+    for (const [k, mm, dd] of FEST) {
+      if (text.includes(k)) {
+        const d = new Date(base.getFullYear(), mm - 1, dd);
+        if (d.getTime() < startOfToday.getTime()) d.setFullYear(base.getFullYear() + 1);
+        dateObj = d;
+        break;
+      }
+    }
+  }
+
+  // 时间（必须带 点/时/:/半 之一，避免误判纯数字；后续时间继承前一时段）
+  const times: { h: number; m: number }[] = [];
+  let lastPeriod: "am" | "pm" | null = null;
+  const TIME = /(上午|早上|早晨|凌晨|中午|下午|傍晚|晚上|夜里|半夜)?\s*(\d{1,2})(?:(?:[:：](\d{1,2}))|点\s*(半|(\d{1,2})\s*分)?|时\s*(半|(\d{1,2})\s*分)?)/g;
+  let tm: RegExpExecArray | null;
+  while ((tm = TIME.exec(text))) {
+    let h = +tm[2];
+    let m = 0;
+    if (tm[3] !== undefined && tm[3] !== "") m = +tm[3];
+    else if (tm[4] === "半") m = 30;
+    else if (tm[5] !== undefined && tm[5] !== "") m = +tm[5];
+    const mod = tm[1];
+    if (mod === "上午" || mod === "早上" || mod === "早晨" || mod === "凌晨") { if (h === 12) h = 0; lastPeriod = "am"; }
+    else if (mod === "中午") { if (h < 12) h += 12; lastPeriod = "pm"; }
+    else if (mod === "下午" || mod === "傍晚" || mod === "晚上" || mod === "夜里") { if (h < 12) h += 12; lastPeriod = "pm"; }
+    else if (mod === "半夜") { if (h === 12) h = 0; lastPeriod = "am"; }
+    else {
+      if (lastPeriod === "pm" && h < 12) h += 12;
+      else if (lastPeriod === "am" && h === 12) h = 0;
+    }
+    h = Math.max(0, Math.min(23, h));
+    m = Math.max(0, Math.min(59, m));
+    times.push({ h, m });
+  }
+
+  if (!dateObj && times.length === 0) return null;
+  const date = dateObj ?? base;
+  const startDate = ymdStr(date);
+  if (times.length === 0) return { startDate };
+
+  const fmt = (t: { h: number; m: number }) =>
+    `${String(t.h).padStart(2, "0")}:${String(t.m).padStart(2, "0")}`;
+  const t0 = times[0];
+  if (times.length >= 2) {
+    return { startDate, startTime: fmt(t0), endDate: startDate, endTime: fmt(times[1]) };
+  }
+  const end = addDaysDate(date, 0);
+  end.setHours(t0.h, t0.m + 60, 0, 0);
+  return {
+    startDate,
+    startTime: fmt(t0),
+    endDate: ymdStr(end),
+    endTime: fmt({ h: end.getHours(), m: end.getMinutes() }),
+  };
 }
