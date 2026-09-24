@@ -267,41 +267,40 @@ function editorHtml(
 <div class="caldav-editor-form">
   <div class="caldav-tab-panel" data-panel="basic">
     <div class="caldav-section">
-      <label class="caldav-field-label caldav-title-label">${isTodo ? "待办标题" : "事件标题"}</label>
+      <div class="caldav-title-head">
+        <label class="caldav-field-label caldav-title-label">${isTodo ? "待办标题" : "事件标题"}</label>
+        <label class="caldav-switch-line caldav-title-aiparse">
+          <span class="caldav-switch-label">粘贴自动识别日期</span>
+          <span class="caldav-switch">
+            <input type="checkbox" data-f="aiParse"/>
+            <span class="caldav-switch-track"></span>
+          </span>
+        </label>
+      </div>
       <div class="caldav-title-row">
         <div class="caldav-input-wrap caldav-title-wrap">
           <input class="caldav-input caldav-title-input" data-f="summary" placeholder="${isTodo ? "请输入待办标题" : "请输入事件标题"}" value="${escape(it.summary)}"/>
           <button type="button" class="caldav-input-suffix caldav-title-action" data-action="ai-parse" title="自动识别标题中的日期时间">${icons.sparkle}</button>
         </div>
       </div>
-      <label class="caldav-switch-line">
-        <span class="caldav-switch-label">粘贴自动识别日期</span>
-        <span class="caldav-switch">
-          <input type="checkbox" data-f="aiParse"/>
-          <span class="caldav-switch-track"></span>
-        </span>
-      </label>
     </div>
 
     <div class="caldav-section caldav-section--card">
-      <div class="caldav-section-title"><span class="caldav-section-icon">${icons.calendar}</span>基本信息</div>
-      <div class="caldav-field">
-        <label class="caldav-field-label">日历</label>
-        <div class="caldav-input-wrap" style="--cal-color:${escape(calColorOf(cals, it.calendarUrl))}">
-          <span class="caldav-input-icon caldav-input-icon--static caldav-cal-icon">${icons.calendar}</span>
-          <input type="hidden" data-f="calendar" value="${escape(it.calendarUrl)}"/>
-          <button type="button" class="caldav-input caldav-cal-trigger" data-action="cal-toggle">
-            <span class="caldav-cal-name">${escape(cals.find((c) => c.url === it.calendarUrl)?.displayName || it.calendarUrl)}</span>
-            <span class="caldav-input-suffix">${icons.chevron}</span>
-          </button>
-          <div class="caldav-cal-pop" data-cal-pop hidden>
-            ${cals
-              .map(
-                (c) =>
-                  `<button type="button" class="caldav-cal-option ${c.url === it.calendarUrl ? "is-active" : ""}" data-cal-url="${escape(c.url)}"><span class="caldav-cal-dot" style="background:${escape(c.color)}"></span>${escape(c.displayName)}</button>`
-              )
-              .join("")}
-          </div>
+      <div class="caldav-section-title caldav-cal-head"><span class="caldav-section-icon">${icons.calendar}</span>日历选择</div>
+      <div class="caldav-input-wrap" style="--cal-color:${escape(calColorOf(cals, it.calendarUrl))}">
+        <span class="caldav-input-icon caldav-input-icon--static caldav-cal-icon">${icons.calendar}</span>
+        <input type="hidden" data-f="calendar" value="${escape(it.calendarUrl)}"/>
+        <button type="button" class="caldav-input caldav-cal-trigger" data-action="cal-toggle">
+          <span class="caldav-cal-name">${escape(cals.find((c) => c.url === it.calendarUrl)?.displayName || it.calendarUrl)}</span>
+          <span class="caldav-input-suffix">${icons.chevron}</span>
+        </button>
+        <div class="caldav-cal-pop" data-cal-pop hidden>
+          ${cals
+            .map(
+              (c) =>
+                `<button type="button" class="caldav-cal-option ${c.url === it.calendarUrl ? "is-active" : ""}" data-cal-url="${escape(c.url)}"><span class="caldav-cal-dot" style="background:${escape(c.color)}"></span>${escape(c.displayName)}</button>`
+            )
+            .join("")}
         </div>
       </div>
     </div>
@@ -516,11 +515,6 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
     });
   });
 
-  // 全天切换显示/隐藏时间输入
-  const timeWraps = Array.from(el.querySelectorAll<HTMLElement>(".caldav-input-wrap--time"));
-  const timeClears = Array.from(el.querySelectorAll<HTMLElement>(".caldav-input-clear--time"));
-  const durationRow = el.querySelector<HTMLElement>(".caldav-duration-row");
-
   // 日历自定义下拉：图标颜色随所选日历，弹层为暖色浅底（原生 select 弹层无法去除系统蓝高亮）
   const calInput = f("calendar");
   const calWrap = calInput.closest<HTMLElement>(".caldav-input-wrap");
@@ -544,6 +538,12 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
     applyCalendar(opt.dataset.calUrl || "");
     if (calPop) calPop.hidden = true;
   });
+
+  // 全天切换显示/隐藏时间输入
+  const timeWraps = Array.from(el.querySelectorAll<HTMLElement>(".caldav-input-wrap--time"));
+  const timeClears = Array.from(el.querySelectorAll<HTMLElement>(".caldav-input-clear--time"));
+  const durationRow = el.querySelector<HTMLElement>(".caldav-duration-row");
+
   // ---- 自定义时间选择器 ----
   // 原生 <input type="time"> 的弹出面板由浏览器绘制，选中项固定是系统高亮色（蓝），
   // 换主题也不会变（CSS 改不动它），所以改成自绘的「时 / 分」两列弹层，配色全走主题变量。
