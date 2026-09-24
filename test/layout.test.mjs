@@ -19,7 +19,7 @@ import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { setupBrowserDom, loadBuiltPlugin, seedStore } from "./helpers.mjs";
 
@@ -260,7 +260,12 @@ for (const w of [...NARROW, ...STRICT]) {
 
 ws.close();
 cleanup();
-fs.rmSync(outDir, { recursive: true, force: true });
+// 直接用原生 rd 清理（绕过 WorkBuddy 的 trash 二进制 —— 删除大目录时该二进制会超时卡死）
+try {
+  execFileSync(process.env.ComSpec || "cmd", ["/c", "rd", "/s", "/q", outDir], { stdio: "ignore" });
+} catch {
+  try { fs.rmSync(outDir, { recursive: true, force: true }); } catch { /* 临时目录，清理失败不影响结论 */ }
+}
 
 for (const line of report) console.log("  ✓ " + line);
 console.log("[layout] 移动端日期时间行排版回归通过（360~430 一行收住，清除按钮未被顶出）");

@@ -1790,11 +1790,53 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   margin-bottom: 0;
 }
 
+/* 「日历选择」分组：标题行右侧直接展示当前日历（色点 + 名称），去掉单独的日历字段行 */
+.caldav-cal-head {
+  justify-content: flex-start;
+}
+.caldav-cal-head .caldav-cal-current {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--caldav-text-2);
+}
+.caldav-cal-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--cal-color, #64748b);
+  flex: 0 0 auto;
+}
+
 /* 标题区 */
 .caldav-title-label {
   font-size: 14px;
   font-weight: 600;
   color: var(--caldav-text);
+}
+
+/* 标题行头部：左侧标题、右侧「粘贴自动识别日期」开关，合并一行省空间 */
+.caldav-title-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.caldav-title-head .caldav-title-label {
+  margin-bottom: 0;
+}
+.caldav-title-aiparse {
+  flex: 0 0 auto;
+  border-bottom: none;
+  padding: 0;
+  margin-bottom: 0;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--caldav-text-2);
 }
 
 .caldav-title-wrap {
