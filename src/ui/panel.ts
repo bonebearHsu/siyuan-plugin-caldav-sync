@@ -73,6 +73,13 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
           <div class="caldav-calfilter-pop" data-pop="calfilter" hidden>
             <div class="caldav-cal-head">日历筛选</div>
             <div class="caldav-cal-list"></div>
+            <label class="caldav-switch-line caldav-switch-line--inline caldav-calfilter-opt">
+              <span class="caldav-switch-label">日历视图中显示待办任务</span>
+              <span class="caldav-switch">
+                <input type="checkbox" data-opt="showTodos"/>
+                <span class="caldav-switch-track"></span>
+              </span>
+            </label>
             <div class="caldav-calfilter-foot">
               <button class="caldav-link" data-action="insert-diary">把今日日程与待办插入日记</button>
             </div>
@@ -93,6 +100,7 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
   const app = root.querySelector(".caldav-app") as HTMLElement;
   const calListEl = root.querySelector(".caldav-cal-list") as HTMLElement;
   const calfilterPop = root.querySelector(".caldav-calfilter-pop") as HTMLElement;
+  const showTodosInput = root.querySelector('[data-opt="showTodos"]') as HTMLInputElement;
   const viewEl = root.querySelector(".caldav-view") as HTMLElement;
   const cursorTitleEl = root.querySelector(".caldav-cursor-title") as HTMLElement;
   const ctxMenu = root.querySelector(".caldav-ctxmenu") as HTMLElement;
@@ -137,6 +145,15 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     renderAll();
   }
 
+  /** 「日历视图中显示待办任务」开关：未设置过（老数据）按开启处理 */
+  function todosShownInCalendar(): boolean {
+    return ctx.store.settings.showTodosInCalendar !== false;
+  }
+
+  function renderFilterOpts(): void {
+    showTodosInput.checked = todosShownInCalendar();
+  }
+
   function cursorTitle(): string {
     const c = ctx.cursor;
     if (ctx.viewMode === "year") return `${+c.slice(0, 4)} 年`;
@@ -169,10 +186,14 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
   /** 当前启用日历下、时间窗内的展开实例（待办按到期日，见 view-common.todoDueOccurrences） */
   function visibleOccurrences(startMs: number, endMs: number): Map<CalItem, string[]> {
     const enabled = new Set(ctx.store.settings.calendars.filter((c) => c.enabled).map((c) => c.url));
+    const showTodos = todosShownInCalendar();
     const out = new Map<CalItem, string[]>();
     for (const it of ctx.store.getAll()) {
       if (it.deleted) continue;
       if (!enabled.has(it.calendarUrl)) continue;
+      // 只影响日历视图（年/月/周/日）：关掉开关后只留日程事件。
+      // 任务视图自己收集待办（见 view-task.ts），不读这个开关，因此不受影响。
+      if (!showTodos && it.kind === "todo") continue;
       const occ =
         it.kind === "todo" ? todoDueOccurrences(it, startMs, endMs) : occurrencesInRange(it, startMs, endMs);
       if (occ.length) out.set(it, occ);
@@ -194,6 +215,7 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
     if (destroyed) return;
     hideCtxMenu();
     renderCalList();
+    renderFilterOpts();
     renderView();
   }
 
@@ -510,6 +532,13 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
       calfilterPop.hidden = !calfilterPop.hidden;
       return;
     }
+  });
+
+  // 「日历视图中显示待办任务」开关：写设置后走 saveSettings()（emit → 所有面板实例
+  // 自动 renderAll + 落盘），不用在这里手动重渲染。
+  showTodosInput.addEventListener("change", () => {
+    ctx.store.settings.showTodosInCalendar = showTodosInput.checked;
+    ctx.store.saveSettings();
   });
 
   // 点击面板其它区域时收起浮层（日历筛选 + 右键菜单）

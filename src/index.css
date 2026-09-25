@@ -2404,6 +2404,15 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 }
 .caldav-calfilter-foot .caldav-link:hover { background: var(--caldav-bg-3); }
 
+/* 「日历视图中显示待办任务」开关：与上面的日历列表用一条分隔线断开，
+   标签左、开关右（复用 .caldav-switch-line 的两端对齐布局）。 */
+.caldav-calfilter-opt {
+  margin-top: 10px;
+  padding: 9px 0 2px;
+  border-top: 1px solid var(--caldav-border);
+}
+.caldav-calfilter-opt .caldav-switch-label { font-weight: 400; }
+
 /* ===== Dock：标题 + 一行 5 个按钮 =====
    用 grid 等分，不要用 flex:1。「新增 / 排序」是包着下拉菜单的
    .caldav-dock-menu，它不受按钮 max-width 的约束，在 flex 布局下会把剩余
@@ -2590,12 +2599,56 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   color: var(--d-text);
   scrollbar-width: thin;
 }
-.caldav-dock-list::-webkit-scrollbar { width: 8px; }
-.caldav-dock-list::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--d-text-2) 35%, transparent);
+.caldav-dock-list::-webkit-scrollbar,
+.caldav-scroll-host::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+/* 轨道 / 右下角一律透明，别露出主题给的原生底色 */
+.caldav-dock-list::-webkit-scrollbar-track,
+.caldav-scroll-host::-webkit-scrollbar-track,
+.caldav-dock-list::-webkit-scrollbar-corner,
+.caldav-scroll-host::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* 关键：Windows 下不显式隐藏按钮，滚动条两端会渲染出上下两个小箭头
+   （用户截图里那两条三角就是它 —— 说明那一层滚动条根本没被 ::-webkit-scrollbar 接管） */
+.caldav-dock-list::-webkit-scrollbar-button,
+.caldav-scroll-host::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.caldav-dock-list::-webkit-scrollbar-thumb,
+.caldav-scroll-host::-webkit-scrollbar-thumb {
+  background: transparent;
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
+}
+/* 悬停才显形：平时滑块完全透明，鼠标进入面板才浮出来 */
+.caldav-dock-list:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--d-text-2) 45%, transparent);
+  background-clip: content-box;
+}
+.caldav-scroll-host:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--b3-theme-on-surface, #646a73) 45%, transparent);
+  background-clip: content-box;
+}
+/* Firefox 路径（scrollbar-color 不支持过渡，只能整档切换；scrollbar-width 继承上面的 thin） */
+.caldav-dock-list {
+  scrollbar-color: transparent transparent;
+}
+.caldav-scroll-host {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.caldav-dock-list:hover {
+  scrollbar-color: color-mix(in srgb, var(--d-text-2) 45%, transparent) transparent;
+}
+.caldav-scroll-host:hover {
+  scrollbar-color: color-mix(in srgb, var(--b3-theme-on-surface, #646a73) 45%, transparent) transparent;
 }
 
 /* 列表头：筛选 + 分类 */

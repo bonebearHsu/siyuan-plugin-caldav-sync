@@ -63,6 +63,13 @@ export default class CalDavPlugin extends Plugin {
   private dockMount: { el: HTMLElement; refresh: () => void; destroy: () => void } | null = null;
   /** 移动端侧栏 DOM 观察器：插件 Dock 容器空着被显示出来时补挂面板 */
   private dockObserver: MutationObserver | null = null;
+  /**
+   * 思源给插件 Dock 内容套的那层「自带滚动」的容器。它用的是浏览器原生滚动条
+   * （右侧一条常驻竖杠，Windows 下还带上下箭头），叠在我们自己的列表滚动条外圈。
+   * 运行时向上探测到它之后打 .caldav-scroll-host 标记，交给 CSS 做成透明 + 悬停显形。
+   * 卸载时要把标记摘掉 —— 那是思源的元素，不能留。
+   */
+  private dockScrollHost: HTMLElement | null = null;
 
   async onload(): Promise<void> {
     const self = this;
@@ -257,6 +264,36 @@ export default class CalDavPlugin extends Plugin {
       onToggleDone: (item) => toggleTodoDone(this.mainCtx, item)
     });
     this.dockMount = { el: target, refresh: panel.refresh, destroy: panel.destroy };
+    this.markDockScrollHost(target);
+  }
+
+  /**
+   * 向上找第一个「可滚动」祖先（思源给插件 Dock 内容套的容器），打标记让 CSS 接管
+   * 它的滚动条样式（透明背景 + 悬停显形）。找不到就什么都不做，不影响功能。
+   *
+   * 两道护栏：只向上探 3 层，且遇到带 id 的元素（#sidebar / #layouts / #dockLeft…
+   * 都是思源框架级容器）立刻停 —— 那些容器是多个插件共用的，改了滚动条会波及别人。
+   */
+  private markDockScrollHost(root: HTMLElement): void {
+    let found: HTMLElement | null = null;
+    try {
+      let p: HTMLElement | null = root.parentElement;
+      for (let i = 0; p && i < 3 && p !== document.body; i++) {
+        if (p.id) break;
+        const oy = getComputedStyle(p).overflowY;
+        if (oy === "auto" || oy === "scroll") {
+          found = p;
+          break;
+        }
+        p = p.parentElement;
+      }
+    } catch {
+      /* 测试环境没有 getComputedStyle：静默跳过，纯样式增强不影响功能 */
+    }
+    if (found === this.dockScrollHost) return;
+    this.dockScrollHost?.classList.remove("caldav-scroll-host");
+    this.dockScrollHost = found;
+    found?.classList.add("caldav-scroll-host");
   }
 
   private unmountDock(): void {
@@ -269,6 +306,8 @@ export default class CalDavPlugin extends Plugin {
         /* 卸载阶段尽力而为 */
       }
     }
+    this.dockScrollHost?.classList.remove("caldav-scroll-host");
+    this.dockScrollHost = null;
   }
 
   /**

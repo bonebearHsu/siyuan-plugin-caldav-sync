@@ -110,6 +110,12 @@ export interface CalSettings {
   futureDays: number;
   calendars: CalCalendar[];
   defaultCalendarUrl?: string;
+  /**
+   * 日历视图（年/月/周/日）是否显示待办任务，默认 true。
+   * 关掉后日历视图只显示日程事件 —— 待办仍可在「任务视图」与 Dock 列表中看到与勾选，
+   * 所以这是一个纯展示开关，不影响数据与同步。
+   */
+  showTodosInCalendar?: boolean;
   /** 任务分类（编辑弹窗药丸选择），空数组时回退 DEFAULT_CATEGORIES */
   categories?: CategoryDef[];
   /** 分类是否允许多选 */
@@ -128,6 +134,7 @@ export const DEFAULT_SETTINGS: CalSettings = {
   pastDays: 90,
   futureDays: 370,
   calendars: [],
+  showTodosInCalendar: true,
   categories: DEFAULT_CATEGORIES,
   categoryMulti: false
 };

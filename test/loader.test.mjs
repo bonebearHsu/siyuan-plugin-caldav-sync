@@ -543,6 +543,44 @@ assert.ok(
   "「插入日记」菜单项应保留"
 );
 
+// ---- 「日历视图中显示待办任务」开关：关掉后日历视图只留日程，任务视图不受影响 ----
+// 关键字形：keyOf() 产出 "<uid>|<kind>"（重复实例多一段 recurId），所以用后缀选 kind。
+const todoChips = () => tabEl.querySelectorAll('.caldav-view [data-open$="|todo"]').length;
+const eventChips = () => tabEl.querySelectorAll('.caldav-view [data-open$="|event"]').length;
+const showTodosBox = () => tabEl.querySelector('.caldav-calfilter-pop [data-opt="showTodos"]');
+const setShowTodos = (on) => {
+  const box = showTodosBox();
+  box.checked = on;
+  box.dispatchEvent(new Event("change", { bubbles: true }));
+};
+
+assert.ok(showTodosBox(), "日历筛选浮层应有「日历视图中显示待办任务」开关");
+assert.strictEqual(showTodosBox().checked, true, "开关默认应为开启");
+const todosBefore = todoChips();
+assert.ok(todosBefore > 0, "默认月视图应同时显示待办");
+
+setShowTodos(false);
+assert.strictEqual(plugin.store.settings.showTodosInCalendar, false, "关掉开关应写入设置");
+assert.strictEqual(todoChips(), 0, "关掉后月视图不应再显示待办");
+assert.ok(eventChips() > 0, "关掉后日程事件仍应照常显示");
+
+// 周 / 日视图共用同一份 occurrences，必须一致生效
+click(tabEl.querySelector('[data-view="week"]'));
+assert.strictEqual(todoChips(), 0, "关掉后周视图同样不应显示待办");
+click(tabEl.querySelector('[data-view="day"]'));
+assert.strictEqual(todoChips(), 0, "关掉后日视图同样不应显示待办");
+click(tabEl.querySelector('[data-view="month"]'));
+
+// 任务视图自己收集待办（view-task.ts），不该被这个日历开关连坐
+click(tabEl.querySelector('[data-action="toggle-view"]'));
+assert.ok(tabEl.querySelector(".cal-task"), "关掉开关后任务视图仍应显示任务");
+click(tabEl.querySelector('[data-action="toggle-view"]'));
+
+setShowTodos(true);
+assert.strictEqual(plugin.store.settings.showTodosInCalendar, true, "重新打开应写回设置");
+assert.strictEqual(todoChips(), todosBefore, "重新打开后待办数量应复原");
+assert.strictEqual(showTodosBox().checked, true, "重渲染后开关应保持勾选状态");
+
 // ---- 眼睛按钮 / 整行点击：切换该日历在视图中的显示与隐藏 ----
 // 防回归：旧实现的通用 target 解析句子是 closest("[data-view],[data-action],[data-cal]")，
 // 而眼睛按钮自身不带 data-* 属性 → closest 直接跳过它命中父级 .caldav-cal-item，
@@ -810,6 +848,30 @@ assert.ok(
 assert.ok(
   /@media\s*\(hover:\s*none\)\s*\{[^}]*\.caldav-cal-toggle\s*\{\s*opacity:\s*1/.test(builtCss),
   "无悬停设备上眼睛按钮应常驻可见（否则触摸端根本发现不了这个开关）"
+);
+
+// ---- Dock 滚动条：透明背景 + 平时隐身 + 悬停显形 ----
+assert.ok(
+  /\.caldav-dock-list::-webkit-scrollbar-track[^{]*\{[^}]*background:\s*transparent/.test(builtCss),
+  "Dock 列表滚动条轨道必须透明（否则右侧常驻一条灰色竖杠）"
+);
+assert.ok(
+  /\.caldav-dock-list::-webkit-scrollbar-thumb[^{]*\{[^}]*background:\s*transparent/.test(builtCss),
+  "Dock 列表滚动条滑块默认应完全透明（平时看不见）"
+);
+assert.ok(
+  /\.caldav-dock-list:hover::-webkit-scrollbar-thumb[^{]*\{[^}]*background:\s*color-mix/.test(builtCss),
+  "悬停时应把滑块显出来（color-mix 半透明主题色）"
+);
+assert.ok(
+  /\.caldav-dock-list::-webkit-scrollbar-button[^{]*\{[^}]*display:\s*none/.test(builtCss),
+  "必须显式隐藏滚动条两端的箭头按钮（Windows 下不隐藏就是那两条三角）"
+);
+// 思源给插件 Dock 套的滚动容器：靠运行时打标记，样式必须成对存在
+assert.ok(
+  /\.caldav-scroll-host::-webkit-scrollbar\s*\{/.test(builtCss) &&
+    /\.caldav-scroll-host:hover::-webkit-scrollbar-thumb\s*\{/.test(builtCss),
+  "思源 Dock 外层滚动容器也应有同款滚动条处理（.caldav-scroll-host）"
 );
 
 // ---- 图标防回归：宿主 base.css 有全局规则 svg{fill:currentColor}，
