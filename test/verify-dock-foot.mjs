@@ -10,6 +10,7 @@
  *
  * 用法：node test/verify-dock-foot.mjs
  */
+import { freeDebugPort } from "./helpers.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -72,7 +73,7 @@ const browserPath = CANDIDATES.find((p) => { try { return fs.statSync(p).isFile(
 if (!browserPath) { console.log("[dock-foot] 跳过：未找到 Edge/Chrome"); process.exit(0); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PORT = 9365;
+const PORT = await freeDebugPort();
 const proc = spawn(browserPath, [
   "--headless=new", "--disable-gpu", "--no-sandbox",
   "--no-first-run", "--disable-extensions", "--disable-background-networking",

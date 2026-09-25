@@ -6,6 +6,7 @@
  *     - 周三 09:00 事件块顶部 y 是否等于左侧 09:00 刻度 y（问题3 时间线对齐）
  *   本机无 Edge 时打印提示并退出 0。
  */
+import { freeDebugPort } from "./helpers.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -83,7 +84,7 @@ const browserPath = CANDIDATES.find((p) => { try { return fs.statSync(p).isFile(
 if (!browserPath) { console.log("[wk] 跳过：未找到 Edge/Chrome"); process.exit(0); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PORT = 9351;
+const PORT = await freeDebugPort();
 const proc = spawn(browserPath, [
   "--headless=new", "--disable-gpu", "--no-sandbox", "--hide-scrollbars",
   "--no-first-run", "--disable-extensions", "--disable-background-networking",

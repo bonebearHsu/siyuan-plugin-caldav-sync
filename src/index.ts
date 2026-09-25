@@ -22,8 +22,22 @@ import { openEditor } from "@/ui/editor";
 import { openSettingsDialog } from "@/ui/settings-dialog";
 import { showReminderToast, clearReminderToasts } from "@/ui/reminder-toast";
 
+/**
+ * Dock / 页签的类型标识。思源拿它记账（侧栏位置、已打开模型），**改了等于换一个插件**，
+ * 用户已保存的 Dock 布局会失配。所以它只当「标识」用，不再兼作数据文件名。
+ */
 const DOCK_TYPE = "caldav-sync-dock";
 const TAB_TYPE = "caldav-sync-tab";
+/** 插件数据文件名：带 .json 后缀，便于在文件管理器里直接双击查看/编辑 */
+const DATA_FILE = "caldav-sync.json";
+/**
+ * 0.2.12 及更早版本的数据文件名（无扩展名，历史上直接复用了 DOCK_TYPE 的值）。
+ * 这里刻意写成字面量而不是 `= DOCK_TYPE` —— 它是**冻结的历史值**，
+ * 将来谁再动 DOCK_TYPE 都不能连带改掉它，否则老用户的数据就找不回来了。
+ */
+const LEGACY_DATA_FILE = "caldav-sync-dock";
+/** 更早期原型留下的空壳文件：任何已发布版本都不读它，迁移时顺手清掉 */
+const STALE_DATA_FILES = ["caldav-data.json"];
 /** 写入日记的小节标题，同时作为「重复点击→替换而非追加」的识别标记 */
 const DIARY_SECTION_TITLE = "今日日程与待办";
 
@@ -87,8 +101,9 @@ export default class CalDavPlugin extends Plugin {
     await this.ensureSecretSeed();
 
     this.store = new CalStore({
-      loadData: () => this.loadData(DOCK_TYPE),
-      saveData: (d) => this.saveData(DOCK_TYPE, d)
+      // 读：新文件名优先，读不到再回退历史文件名并一次性迁移（见 loadPluginData）
+      loadData: () => this.loadPluginData(),
+      saveData: (d) => this.saveData(DATA_FILE, d)
     });
     await this.store.load();
     // 设备标识若迟到（getConf 失败/慢），v2 旧密文会停在「待解密」。稍后补一次；
@@ -579,6 +594,53 @@ export default class CalDavPlugin extends Plugin {
       await this.store.retryUnlock();
     } catch (e) {
       console.warn("[caldav] 重试解密失败:", e);
+    }
+  }
+
+  /**
+   * 读取插件数据：新文件名优先；读不到再回退历史文件名，并做一次**无损迁移**。
+   *
+   * 三条铁律（和数据/密码处理同一套思路：宁可响亮失败，绝不静默变空）：
+   *   1. 「读到空」= 文件不存在，可以回退旧名；**「读出错」不吞异常** ——
+   *      读新文件报错时若当成「不存在」，就会拿旧文件的数据把用户较新的数据覆盖掉，
+   *      还会顺手把好文件删了。这种情况让它抛出去（启动即报错，用户能看见、文件不动）。
+   *   2. 迁移顺序不可颠倒：**先写新文件、确认成功，再删旧文件**。反过来一旦写失败
+   *      （磁盘满 / 内核忙 / 进程被杀），数据就新旧两处皆无 → 用户看到「设置和任务全空」。
+   *   3. 写失败时保留旧文件、把老数据交给内存，本次会话照常可用，下次启动再试。
+   *
+   * 迁移每台设备只跑一次（跑完新文件就存在了），不会每次启动都探测一遍旧名。
+   */
+  private async loadPluginData(): Promise<any> {
+    const fresh = await this.loadData(DATA_FILE);
+    if (fresh) return fresh;
+
+    const legacy = await this.loadData(LEGACY_DATA_FILE);
+    if (!legacy) {
+      // 全新安装：没有可迁移的数据，顺手清掉更早期原型留下的空壳文件
+      await this.removeDataSafe([...STALE_DATA_FILES]);
+      return undefined;
+    }
+
+    try {
+      await this.saveData(DATA_FILE, legacy);
+    } catch (e) {
+      console.warn(`[caldav] 数据迁移到 ${DATA_FILE} 失败，保留旧文件 ${LEGACY_DATA_FILE}，本次仍用旧数据`, e);
+      return legacy;
+    }
+    console.info(`[caldav] 数据文件已迁移：${LEGACY_DATA_FILE} → ${DATA_FILE}`);
+    // 新文件已落地，旧文件与空壳都可以收了（删不掉也无所谓，下次启动再清）
+    await this.removeDataSafe([LEGACY_DATA_FILE, ...STALE_DATA_FILES]);
+    return legacy;
+  }
+
+  /** 删数据文件：尽力而为，文件不存在或内核拒绝都无所谓，绝不能影响启动 */
+  private async removeDataSafe(names: string[]): Promise<void> {
+    for (const name of names) {
+      try {
+        await this.removeData(name);
+      } catch {
+        /* 不存在 / 无权限 / 内核未实现：忽略 */
+      }
     }
   }
 

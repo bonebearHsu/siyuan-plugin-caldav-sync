@@ -10,6 +10,7 @@
  *     - 独立行 .cal-wk-block-loc 不存在
  *     - 标题高度被块 overflow 裁住（title 底部不超出块底部太多——允许裁切，但不能撑破布局）
  */
+import { freeDebugPort } from "./helpers.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -78,7 +79,7 @@ const browserPath = CANDIDATES.find((p) => { try { return fs.statSync(p).isFile(
 if (!browserPath) { console.log("[wkclip] 跳过：未找到 Edge"); process.exit(0); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PORT = 9355;
+const PORT = await freeDebugPort();
 const proc = spawn(browserPath, [
   "--headless=new", "--disable-gpu", "--no-sandbox", "--hide-scrollbars",
   "--no-first-run", "--disable-extensions", "--disable-background-networking",

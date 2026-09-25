@@ -21,7 +21,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { setupBrowserDom, loadBuiltPlugin, seedStore } from "./helpers.mjs";
+import { setupBrowserDom, loadBuiltPlugin, seedStore, freeDebugPort } from "./helpers.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
@@ -111,7 +111,7 @@ fs.writeFileSync(pagePath, pageHtml, "utf8");
 
 /* ---------- 4. CDP ---------- */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PORT = 9347;
+const PORT = await freeDebugPort();
 const proc = spawn(
   browserPath,
   [

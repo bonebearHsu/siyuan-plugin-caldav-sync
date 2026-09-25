@@ -10,6 +10,7 @@
  *   2. 强制 :hover 后滑块变成半透明主题色（显形）；
  *   3. 开关行落在浮层里、单行不换行、开关贴右、浮层不横向溢出。
  */
+import { freeDebugPort } from "./helpers.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -81,7 +82,7 @@ const browserPath = CANDIDATES.find((p) => { try { return fs.statSync(p).isFile(
 if (!browserPath) { console.log("[dock-scroll] 跳过：未找到 Edge/Chrome"); process.exit(0); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PORT = 9361;
+const PORT = await freeDebugPort();
 const proc = spawn(browserPath, [
   "--headless=new", "--disable-gpu", "--no-sandbox",
   // 注意：这里**不能**加 --hide-scrollbars，否则滚动条根本不渲染，验了个寂寞

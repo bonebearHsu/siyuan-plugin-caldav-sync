@@ -32,6 +32,27 @@ export async function settle(rounds = 4) {
   for (let i = 0; i < rounds; i++) await new Promise((r) => setTimeout(r, 20));
 }
 
+/**
+ * 取一个「系统真的允许监听」的本地端口，交给 CDP（无头浏览器调试端口）用。
+ *
+ * **不要把端口写死。** Windows 会把成段的端口保留给 Hyper-V / WSL / Docker 之类
+ * （`netsh int ipv4 show excludedportrange protocol=tcp` 能查到；本机一度整段保留了
+ * 8984-9483，正好吃掉所有测试用的 93xx），落进保留段监听只会得到 EACCES ——
+ * 表现是「应能连上无头浏览器的调试端口」断言失败，且**所有** CDP 脚本一起挂。
+ * 让系统分配就没事：内核挑临时端口时会自己避开保留段。
+ */
+export async function freeDebugPort() {
+  const { createServer } = await import("node:net");
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.on("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
 export function loadBuiltPlugin() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const dist = path.join(root, "dist", "index.js");

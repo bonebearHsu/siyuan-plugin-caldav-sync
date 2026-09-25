@@ -5,6 +5,7 @@
  *   场景 B（有全天事件）：.cal-wk-allday-cells 高度 == 44px == 单个 .cal-wk-hour 行高。
  *   本机无 Edge 时打印提示并退出 0。
  */
+import { freeDebugPort } from "./helpers.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -62,7 +63,7 @@ const browserPath = CANDIDATES.find((p) => { try { return fs.statSync(p).isFile(
 if (!browserPath) { console.log("[allday] 跳过：未找到 Edge/Chrome"); process.exit(0); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PORT = 9352;
+const PORT = await freeDebugPort();
 const proc = spawn(browserPath, [
   "--headless=new", "--disable-gpu", "--no-sandbox", "--hide-scrollbars",
   "--no-first-run", "--disable-extensions", "--disable-background-networking",

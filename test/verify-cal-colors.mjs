@@ -13,6 +13,7 @@
  *   4. 取色输入铺满药丸，药丸中心命中它（点哪儿都弹系统取色器）；
  *   5. 药丸贴在名字输入框右侧，行不溢出、不换行。
  */
+import { freeDebugPort } from "./helpers.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -78,7 +79,7 @@ const browserPath = CANDIDATES.find((p) => { try { return fs.statSync(p).isFile(
 if (!browserPath) { console.log("[cal-colors] 跳过：未找到 Edge/Chrome"); process.exit(0); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PORT = 9363;
+const PORT = await freeDebugPort();
 const proc = spawn(browserPath, [
   "--headless=new", "--disable-gpu", "--no-sandbox",
   "--no-first-run", "--disable-extensions", "--disable-background-networking",
