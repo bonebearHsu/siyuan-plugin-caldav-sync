@@ -1,6 +1,6 @@
 /** 视图渲染公共类型 */
 import type { CalItem, SortMode } from "../core/types";
-import { DEFAULT_CATEGORIES } from "../core/types";
+import { DEFAULT_CATEGORIES, calEventColor, calTodoColor } from "../core/types";
 import type { PanelCtx } from "./panel";
 import { occurrencesInRange } from "../core/ics";
 import { parseLocalStamp, stampOfMs } from "../core/date";
@@ -62,9 +62,10 @@ export function escape(s: string): string {
 /**
  * 条目在日历视图上显示的颜色：
  *  - 优先用「分类颜色」：条目带分类，且能在本地分类定义里按「名称」匹配到颜色；
- *  - 否则回退到所属「日历的默认颜色」；
+ *  - 否则回退到所属「日历的默认颜色」——待办取 todoColor、日程取 eventColor；
  *  - 两者皆无（无分类且日历未在设置里）再给一个中性灰。
  * 这是「日历视图按分类着色」的唯一切口，月/周/年/任务视图共用，改这里即可全局生效。
+ * 分类优先于默认色的规则保持不变：只要条目命中了分类，就看不出本次拆分。
  */
 export function calColorOf(ctx: PanelCtx, it: CalItem): string {
   const cats = ctx.store.settings.categories?.length
@@ -77,7 +78,7 @@ export function calColorOf(ctx: PanelCtx, it: CalItem): string {
     }
   }
   const cal = ctx.store.settings.calendars.find((c) => c.url === it.calendarUrl);
-  return cal?.color || "#64748b";
+  return it.kind === "todo" ? calTodoColor(cal) : calEventColor(cal);
 }
 
 /** 条目某排序键的取值（用于比较；字符串统一字典序比较） */

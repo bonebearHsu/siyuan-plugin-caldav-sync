@@ -4,6 +4,7 @@
  */
 import { addDays, defaultStartStamp, diffDays, parseLocalStamp, startOfWeek, todayStamp } from "../core/date";
 import type { CalItem } from "../core/types";
+import { calEventColor } from "../core/types";
 import { calColorOf, escape, keyOfItem, todoDueOccurrences, type ViewArgs } from "./view-common";
 
 type FilterKey =
@@ -130,7 +131,7 @@ export function renderTaskView({ ctx, viewEl, occurrences }: ViewArgs): void {
     <div class="cal-task-meta">
       <span class="${overdue ? "cal-task-overdue" : ""}">${dueText}</span>
       ${it.description ? `<span class="cal-task-desc" title="${escape(it.description)}">${escape(it.description).slice(0, 40)}</span>` : ""}
-      <span class="cal-task-cal"><i style="background:${cal?.color || "#64748b"}"></i>${escape(cal?.displayName || "")}</span>
+      <span class="cal-task-cal"><i style="background:${calEventColor(cal)}"></i>${escape(cal?.displayName || "")}</span>
     </div>
   </div>
 </div>`;

@@ -8,7 +8,7 @@ import type { CalStore } from "../core/store";
 import { keyOf } from "../core/store";
 import type { SyncEngine } from "../core/sync";
 import type { CalItem, CalKind, SortMode } from "../core/types";
-import { DEFAULT_CATEGORIES } from "../core/types";
+import { DEFAULT_CATEGORIES, calEventColor } from "../core/types";
 import { occurrencesInRange } from "../core/ics";
 import { parseLocalStamp, stampOfMs, todayStamp, startOfWeek, addDays, isDateOnly, fmtTime, fmtDateCn, diffDays } from "../core/date";
 import { icons } from "./icons";
@@ -121,7 +121,7 @@ export function renderPanel(root: HTMLElement, ctx: PanelCtx): { destroy: () => 
         (c, i) => `
       <div class="caldav-cal-item ${c.enabled ? "" : "is-off"}" data-cal="${i}"
            title="${c.enabled ? "点击在视图中隐藏此日历" : "点击在视图中显示此日历"}">
-        <span class="caldav-cal-dot" style="background:${c.color}"></span>
+        <span class="caldav-cal-dot" style="background:${calEventColor(c)}"></span>
         <span class="caldav-cal-name" title="${escapeAttr(c.url)}">${escapeHtml(c.displayName)}</span>
         <button class="caldav-icon-btn caldav-cal-toggle" type="button"
                 aria-pressed="${c.enabled ? "true" : "false"}"

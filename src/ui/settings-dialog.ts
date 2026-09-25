@@ -4,6 +4,7 @@
 import { Dialog, showMessage } from "siyuan";
 import { isMobile } from "./device";
 import type { CalCalendar } from "../core/types";
+import { calEventColor, calTodoColor, normalizeCalendarColors } from "../core/types";
 import { testConnection, discoverCalendars, describeNetworkError } from "../core/caldav";
 import type { PanelCtx } from "./panel";
 import { escape } from "./view-common";
@@ -163,11 +164,16 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
       el.querySelectorAll<HTMLElement>(".caldav-set-cal").forEach((row) => {
         const c = s.calendars[+row.dataset.idx!];
         c.enabled = (row.querySelector("input[type='checkbox']") as HTMLInputElement).checked;
-        const colorInput = row.querySelector("input[type='color']") as HTMLInputElement;
-        if (colorInput.value) c.color = colorInput.value;
         const nameInput = row.querySelector("input[data-role='name']") as HTMLInputElement;
         if (nameInput.value.trim()) c.displayName = nameInput.value.trim();
+        // 日程 / 待办各自的默认色（药丸即取色器）。没出药丸的一侧保持原值不动
+        const evInput = row.querySelector("input[data-role='eventColor']") as HTMLInputElement | null;
+        if (evInput?.value) c.eventColor = evInput.value;
+        const tdInput = row.querySelector("input[data-role='todoColor']") as HTMLInputElement | null;
+        if (tdInput?.value) c.todoColor = tdInput.value;
       });
+      // 补齐缺的一侧 + 把旧 color 镜像成 eventColor（旧版本端读同一份数据不会变灰）
+      normalizeCalendarColors(s.calendars);
       s.defaultCalendarUrl = s.calendars.find((c) => c.enabled)?.url;
       await ctx.store.persist();
       ctx.sync.startAutoSync();
@@ -301,7 +307,55 @@ function settingsHtml(s: PanelCtx["store"]["settings"], mobile: boolean): string
 </div>`;
 }
 
+/**
+ * 药丸（色块）上的文字自己挑黑/白：颜色深浅不定，写死白字在浅色（如柠檬绿）上读不清。
+ * 用 WCAG 相对亮度阈值切一刀，任何色值都能保证对比。
+ */
+function contrastText(hex: string): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec((hex || "").trim());
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1], 16);
+  const lin = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L > 0.42 ? "#1f2937" : "#ffffff";
+}
+
+/**
+ * 「任务」/「日程」药丸 = 该日历对应类型的默认色选择器（取代原来左侧那个独立色块）。
+ *
+ * 实现要点：药丸是个 <label>，里面嵌一个**铺满整块的透明原生 input[type=color]**。
+ * 点击直接落在原生取色输入上 → 弹出系统取色器，和改造前左侧色块是同一套交互，
+ * 不需要 JS 去模拟 click —— 移动端 WebView 里模拟 click 是弹不出取色器的。
+ */
+function colorPillHtml(role: "todoColor" | "eventColor", label: string, color: string): string {
+  return `<label class="caldav-set-cal-tag" data-role-pill="${role}"
+      style="--tag-color:${escape(color)};--tag-fg:${contrastText(color)}"
+      title="点击选择该日历「${label}」的默认颜色">
+      <input type="color" data-role="${role}" value="${escape(color)}"/>
+      <span>${label}</span>
+    </label>`;
+}
+
+/** 取色过程中让药丸底色实时跟随（原生取色器拖色会连续触发 input） */
+function bindColorPills(box: HTMLElement): void {
+  box.querySelectorAll<HTMLElement>(".caldav-set-cal-tag").forEach((pill) => {
+    const input = pill.querySelector("input[type='color']") as HTMLInputElement | null;
+    if (!input) return;
+    const sync = () => {
+      pill.style.setProperty("--tag-color", input.value);
+      pill.style.setProperty("--tag-fg", contrastText(input.value));
+    };
+    input.addEventListener("input", sync);
+    input.addEventListener("change", sync);
+  });
+}
+
 function renderCalChecks(el: HTMLElement, cals: CalCalendar[]): void {
+  // 老数据（只有单个 color）在这里就地升级：eventColor/todoColor 都继承原色，观感不变
+  normalizeCalendarColors(cals);
   const box = el.querySelector("[data-cals]") as HTMLElement;
   if (!cals.length) {
     box.innerHTML = `<div class="caldav-set-hint">尚未发现日历，请先填写服务器信息并点击「发现日历」</div>`;
@@ -312,10 +366,14 @@ function renderCalChecks(el: HTMLElement, cals: CalCalendar[]): void {
       (c, i) => `
     <div class="caldav-set-cal" data-idx="${i}">
       <input type="checkbox" ${c.enabled ? "checked" : ""}/>
-      <input type="color" value="${escape(c.color)}" title="颜色"/>
       <input class="caldav-input" data-role="name" value="${escape(c.displayName)}" title="${escape(c.url)}"/>
-      <span class="caldav-set-cal-tags">${c.supportsTodo ? "<i>任务</i>" : ""}${c.supportsEvent ? "<i>日程</i>" : ""}</span>
+      <span class="caldav-set-cal-tags">${
+        // 顺序固定为「日程」在前、「任务」在后；只给该日历支持的组件出药丸（不支持就没有对应色可配）
+        (c.supportsEvent ? colorPillHtml("eventColor", "日程", calEventColor(c)) : "") +
+        (c.supportsTodo ? colorPillHtml("todoColor", "任务", calTodoColor(c)) : "")
+      }</span>
     </div>`
     )
     .join("");
+  bindColorPills(box);
 }

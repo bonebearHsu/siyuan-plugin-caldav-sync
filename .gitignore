@@ -19,3 +19,5 @@ backup/
 .workbuddy/
 .test-hover/
 .test-dock-scroll/
+.test-cal-colors/
+.test-dock-foot/

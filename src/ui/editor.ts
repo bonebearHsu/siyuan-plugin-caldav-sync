@@ -4,8 +4,8 @@
 import { Dialog } from "siyuan";
 import { isMobile } from "./device";
 import { adoptMobileLayer } from "./mobile-layers";
-import type { Alarm, CalItem, CalKind, CategoryDef, Recurrence } from "../core/types";
-import { DEFAULT_CATEGORIES } from "../core/types";
+import type { Alarm, CalCalendar, CalItem, CalKind, CategoryDef, Recurrence } from "../core/types";
+import { DEFAULT_CATEGORIES, calEventColor } from "../core/types";
 import { keyOf } from "../core/store";
 import { addDays, defaultStartStamp, isDateOnly, parseLocalStamp, stampOfMs, todayStamp } from "../core/date";
 import type { PanelCtx } from "./panel";
@@ -90,8 +90,9 @@ function genUid(): string {
   return "sy-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
 }
 
-function calColorOf(cals: { url: string; color: string }[], selected: string): string {
-  return cals.find((c) => c.url === selected)?.color || "#64748b";
+/** 编辑器里的「日历身份色」= 该日历的日程默认色（拿不到就中性灰） */
+function calColorOf(cals: CalCalendar[], selected: string): string {
+  return calEventColor(cals.find((c) => c.url === selected));
 }
 
 function inputToInputValue(stamp: string, allDay: boolean): string {
@@ -242,7 +243,7 @@ function wireAlarms(el: HTMLElement, errEl: HTMLElement): void {
 
 function editorHtml(
   it: CalItem,
-  cals: { url: string; displayName: string; color: string }[],
+  cals: CalCalendar[],
   cats: CategoryDef[],
   catMulti: boolean,
   isNew: boolean
@@ -298,7 +299,7 @@ function editorHtml(
           ${cals
             .map(
               (c) =>
-                `<button type="button" class="caldav-cal-option ${c.url === it.calendarUrl ? "is-active" : ""}" data-cal-url="${escape(c.url)}"><span class="caldav-cal-dot" style="background:${escape(c.color)}"></span>${escape(c.displayName)}</button>`
+                `<button type="button" class="caldav-cal-option ${c.url === it.calendarUrl ? "is-active" : ""}" data-cal-url="${escape(c.url)}"><span class="caldav-cal-dot" style="background:${escape(calEventColor(c))}"></span>${escape(c.displayName)}</button>`
             )
             .join("")}
         </div>
@@ -522,7 +523,7 @@ function bindEvents(ctx: PanelCtx, dialog: Dialog, el: HTMLElement, it: CalItem,
   const applyCalendar = (url: string) => {
     calInput.value = url;
     const cal = cals.find((c) => c.url === url);
-    calWrap?.style.setProperty("--cal-color", cal?.color || "#64748b");
+    calWrap?.style.setProperty("--cal-color", calEventColor(cal));
     const nameEl = calWrap?.querySelector<HTMLElement>(".caldav-cal-name");
     if (nameEl && cal) nameEl.textContent = cal.displayName;
     calPop?.querySelectorAll(".caldav-cal-option").forEach((o) => o.classList.toggle("is-active", (o as HTMLElement).dataset.calUrl === url));

@@ -621,6 +621,86 @@ if (serverInput) serverInput.value = "";
 click(settingsEl.querySelector("[data-action='test']"));
 const testMsg = settingsEl.querySelector("[data-msg]");
 assert.ok(testMsg && testMsg.textContent.includes("服务器地址不能为空"), "空 URL 测试连接应提示服务器地址不能为空");
+
+// ---- 日历颜色：单一 color 迁移成 eventColor/todoColor；「任务」「日程」药丸即取色器 ----
+const calRows = Array.from(settingsEl.querySelectorAll(".caldav-set-cal"));
+assert.ok(calRows.length >= 1, "设置弹窗应列出已配置的日历");
+const row0 = calRows[0];
+const cal0 = plugin.store.settings.calendars[0];
+// 老数据（seedStore 只给了 color）渲染时就地升级：两色都继承原色，存量条目观感不变
+assert.strictEqual(cal0.eventColor, "#3b82f6", "旧 color 应迁移为日程默认色 eventColor");
+assert.strictEqual(cal0.todoColor, "#3b82f6", "旧 color 应同时迁移为待办默认色 todoColor（不改变观感）");
+// 原来左侧那个独立的日历颜色方块必须去掉
+assert.strictEqual(
+  Array.from(row0.children).filter((e) => e.tagName === "INPUT" && e.type === "color").length,
+  0,
+  "日历行不应再有独立于「任务/日程」的左侧颜色方块"
+);
+
+const colorPills = Array.from(row0.querySelectorAll(".caldav-set-cal-tag"));
+assert.strictEqual(colorPills.length, 2, "「任务」「日程」两个药丸都应保留");
+const roleOf = (p) => p.querySelector("input[type=color]")?.dataset.role;
+const pillByRole = (r) => colorPills.find((p) => roleOf(p) === r);
+const todoPill = pillByRole("todoColor");
+const evPill = pillByRole("eventColor");
+assert.ok(todoPill && evPill, "两个药丸应分别绑定 todoColor / eventColor 取色输入");
+assert.deepStrictEqual(
+  colorPills.map(roleOf),
+  ["eventColor", "todoColor"],
+  "药丸顺序应为「日程」在前、「任务」在后"
+);
+assert.ok(
+  (todoPill.textContent || "").includes("任务") && (evPill.textContent || "").includes("日程"),
+  "药丸文字应仍为「任务」「日程」"
+);
+assert.strictEqual(
+  todoPill.style.getPropertyValue("--tag-color").trim(),
+  "#3b82f6",
+  "药丸底色应显示该日历当前的默认色"
+);
+// 原生取色输入就铺在药丸里：点药丸=直接点在 input[type=color] 上，弹的是系统取色器
+const todoInput = todoPill.querySelector("input[type=color]");
+todoInput.value = "#00c853";
+todoInput.dispatchEvent(new Event("input", { bubbles: true }));
+assert.strictEqual(
+  todoPill.style.getPropertyValue("--tag-color").trim(),
+  "#00c853",
+  "拖动取色器时药丸底色应实时跟随"
+);
+const evInput = evPill.querySelector("input[type=color]");
+evInput.value = "#ff5252";
+evInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+click(settingsEl.querySelector("[data-action='save']"));
+await settle(6);
+assert.strictEqual(cal0.todoColor, "#00c853", "保存后待办默认色应落库");
+assert.strictEqual(cal0.eventColor, "#ff5252", "保存后日程默认色应落库");
+assert.strictEqual(cal0.color, "#ff5252", "旧 color 字段应镜像 eventColor（旧版本端回读同一份数据不变灰）");
+
+// ---- 颜色按条目类型解析：待办走 todoColor、日程走 eventColor ----
+click(tabEl.querySelector('[data-view="month"]'));
+const chipStyle = (key) =>
+  (tabEl.querySelector(`.cal-chip-month[data-open="${key}"]`)?.style.getPropertyValue("--cal-color") || "").trim();
+assert.strictEqual(chipStyle("seed-1@test|event"), "#ff5252", "无分类的日程应使用日历的日程默认色");
+// seed-11 是逾期未完成的待办（当天格子放不下会折叠，挑一个必定可见的）
+assert.strictEqual(chipStyle("seed-11@test|todo"), "#00c853", "无分类的待办应使用日历的待办默认色");
+assert.notStrictEqual(chipStyle("seed-11@test|todo"), chipStyle("seed-1@test|event"), "同一日历下日程/待办默认色应互相独立");
+
+// ---- 「分类色优先于默认日程/待办色」这条老规则不能被本次改动破坏 ----
+const catItem = plugin.store.getAll().find((it) => it.uid === "seed-11@test");
+catItem.categories = ["工作"]; // 工作 = #e05a4c
+plugin.store.putAndEmit(catItem);
+click(tabEl.querySelector('[data-view="month"]'));
+assert.strictEqual(
+  chipStyle("seed-11@test|todo"),
+  "#e05a4c",
+  "命中分类的待办仍取分类颜色，不应被 todoColor 覆盖"
+);
+catItem.categories = undefined;
+plugin.store.putAndEmit(catItem);
+click(tabEl.querySelector('[data-view="month"]'));
+assert.strictEqual(chipStyle("seed-11@test|todo"), "#00c853", "去掉分类后应回落到待办默认色");
+
 document.querySelector(".b3-dialog .b3-dialog--close")?.remove();
 settingsEl?.closest(".b3-dialog")?.remove();
 
@@ -872,6 +952,31 @@ assert.ok(
   /\.caldav-scroll-host::-webkit-scrollbar\s*\{/.test(builtCss) &&
     /\.caldav-scroll-host:hover::-webkit-scrollbar-thumb\s*\{/.test(builtCss),
   "思源 Dock 外层滚动容器也应有同款滚动条处理（.caldav-scroll-host）"
+);
+
+// ---- Dock 页脚：去掉分割线，改成一枚胶囊状态条 + 前置状态圆点 ----
+assert.ok(
+  !/\.caldav-dock-foot\s*\{[^}]*border-top/.test(builtCss),
+  "Dock 页脚不应再有分割线（border-top）"
+);
+assert.ok(
+  /\.caldav-dock-status\s*\{[^}]*border-radius:\s*999px/.test(builtCss) &&
+    /\.caldav-dock-status\s*\{[^}]*background:\s*transparent/.test(builtCss) &&
+    /\.caldav-dock-status\s*\{[^}]*opacity:\s*\.68/.test(builtCss),
+  "状态条默认应极低调（胶囊形但无底色 + 压低不透明度），不能常驻抢眼"
+);
+assert.ok(
+  /\.caldav-dock-status:hover\s*\{[^}]*background:\s*var\(--caldav-bg-3\)/.test(builtCss),
+  "悬停时才显出胶囊底（提示这条可点即同步）"
+);
+assert.ok(
+  /\.caldav-dock-status::before\s*\{[^}]*border-radius:\s*50%[^}]*background:\s*var\(--caldav-text-2\)/.test(builtCss),
+  "正常态状态灯应为不抢眼的小暗点"
+);
+assert.ok(
+  /\.caldav-dock-status\.has-error::before\s*\{[^}]*background:\s*var\(--caldav-danger\)/.test(builtCss) &&
+    !/\.caldav-dock-status\.has-error\s*\{[^}]*background:\s*color-mix/.test(builtCss),
+  "同步失败时只转红字红点，不铺红底（保持低调）"
 );
 
 // ---- 图标防回归：宿主 base.css 有全局规则 svg{fill:currentColor}，

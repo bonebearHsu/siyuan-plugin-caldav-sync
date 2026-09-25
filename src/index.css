@@ -2145,17 +2145,6 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 }
 .caldav-set-cal:hover { border-color: color-mix(in srgb, var(--caldav-accent) 45%, var(--caldav-border)); }
 .caldav-set-cal input[type="checkbox"] { accent-color: var(--caldav-accent); width: 15px; height: 15px; }
-.caldav-set-cal input[type="color"] {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: none;
-  padding: 0;
-  cursor: pointer;
-  border-radius: 6px;
-}
-.caldav-set-cal input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-.caldav-set-cal input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
 .caldav-set-cal .caldav-input {
   flex: 1;
   background: transparent;
@@ -2165,14 +2154,41 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 .caldav-set-cal .caldav-input:hover { background: var(--caldav-input-bg); border-color: var(--caldav-border); }
 .caldav-set-cal .caldav-input:focus { background: var(--caldav-input-bg); }
 
+/* 「任务」/「日程」药丸 = 该日历对应类型的默认色选择器（取代原来左侧那个独立色块）。
+   药丸本身显示当前颜色（--tag-color 由 JS/内联样式给），内嵌的透明原生取色输入铺满整块，
+   所以点哪儿都是直接点在原生 input[type=color] 上 —— 弹的是系统取色器，移动端也照弹。 */
 .caldav-set-cal-tags { display: flex; gap: 5px; }
-.caldav-set-cal-tags i {
-  font-style: normal;
-  font-size: 10px;
-  padding: 1px 6px;
+.caldav-set-cal-tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 3px 8px;
   border-radius: 999px;
-  background: var(--caldav-inset);
-  color: var(--caldav-text-2);
+  background: var(--tag-color, var(--caldav-inset));
+  color: var(--tag-fg, var(--caldav-text-2));
+  font-size: 10px;
+  line-height: 1.3;
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+  transition: filter 0.15s, box-shadow 0.15s;
+}
+.caldav-set-cal-tag:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tag-color) 30%, transparent);
+}
+.caldav-set-cal-tag > span { position: relative; pointer-events: none; }
+.caldav-set-cal-tag input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .caldav-set-hint { font-size: 11px; color: var(--caldav-text-2); }
@@ -2288,19 +2304,22 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   font-weight: 500;
 }
 
+/* Dock 页脚：不用分割线，改成一枚柔和的胶囊状态条（整条可点，点击即同步） */
 .caldav-dock-foot {
   margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding-top: 10px;
-  border-top: 1px solid var(--caldav-border);
+  padding: 4px 4px 0;
 }
 
+/* 默认极低调：无底色、整体压低存在感，只留一行浅灰小字 + 一颗小暗点；
+   鼠标移上去才显形（这是可点即同步的提示，不适合常驻抢眼） */
 .caldav-dock-status {
-  padding: 5px 8px;
+  position: relative;
+  padding: 5px 10px 5px 19px;
   border: none;
-  border-radius: 6px;
+  border-radius: 999px;
   background: transparent;
   color: var(--caldav-text-2);
   font-size: 12px;
@@ -2309,9 +2328,31 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  opacity: .68;
+  transition: background .12s ease, color .12s ease, opacity .12s ease;
 }
 
-.caldav-dock-status:hover { background: var(--caldav-bg-3); color: var(--caldav-text); }
+/* 前置状态灯：正常是一颗不抢眼的小暗点，同步失败时转红 */
+.caldav-dock-status::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--caldav-text-2);
+  opacity: .55;
+  transition: opacity .12s ease, background .12s ease;
+}
+
+.caldav-dock-status:hover {
+  background: var(--caldav-bg-3);
+  color: var(--caldav-text);
+  opacity: 1;
+}
+.caldav-dock-status:hover::before { opacity: .85; }
 
 /* 同步错误正文：直接摊在页脚，不再只藏在悬停提示里 */
 .caldav-dock-error {
@@ -2322,7 +2363,12 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
   overflow-wrap: anywhere;
   cursor: default;
 }
-.caldav-dock-status.has-error { color: var(--caldav-danger); }
+/* 出错时只是「红字 + 红点」，不铺底色，保持低调但能一眼看到 */
+.caldav-dock-status.has-error {
+  color: var(--caldav-danger);
+  opacity: .9;
+}
+.caldav-dock-status.has-error::before { background: var(--caldav-danger); opacity: 1; }
 
 .caldav-dock-settings {
   display: flex;
@@ -2568,12 +2614,6 @@ input.caldav-input[type="time"]:hover::-webkit-calendar-picker-indicator {
 }
 .caldav-dock-popitem:hover { background: var(--caldav-bg-3); }
 .caldav-dock-popitem.is-active { color: var(--caldav-accent); font-weight: 600; }
-
-.caldav-dock-foot {
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--caldav-border);
-}
 
 /* ===== Dock：最近任务/事件列表 ===== */
 .caldav-dock-list {

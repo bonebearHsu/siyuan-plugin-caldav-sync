@@ -164,7 +164,9 @@ export async function discoverCalendars(
     calendars.push({
       url,
       displayName: name || "日历",
-      color,
+      color, // 向下兼容镜像，恒等于 eventColor
+      eventColor: color,
+      todoColor: color,
       enabled: true,
       supportsEvent,
       supportsTodo,
