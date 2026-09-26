@@ -21,6 +21,7 @@ import { adoptMobileLayer, closeAllMobileLayers, isDialogAlive } from "@/ui/mobi
 import { openEditor } from "@/ui/editor";
 import { openSettingsDialog } from "@/ui/settings-dialog";
 import { showReminderToast, clearReminderToasts } from "@/ui/reminder-toast";
+import { newDialog } from "@/ui/dialog";
 
 /**
  * Dock / 页签的类型标识。思源拿它记账（侧栏位置、已打开模型），**改了等于换一个插件**，
@@ -496,7 +497,7 @@ export default class CalDavPlugin extends Plugin {
       }
     }
     // 显式标注类型：destroyCallback 里要引用 dialog 自身，交给推断会绕成循环
-    const dialog: Dialog = new Dialog({
+    const dialog: Dialog = newDialog({
       title: this.mobileTitle(),
       content: `<div class="caldav-mobile-host"></div>`,
       containerClassName: "caldav-mobile-dialog",

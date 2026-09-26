@@ -2,6 +2,7 @@
  * 设置面板：服务器参数 / 测试连接 / 发现日历 / 同步策略
  */
 import { Dialog, showMessage } from "siyuan";
+import { newDialog } from "@/ui/dialog";
 import { isMobile } from "./device";
 import type { CalCalendar } from "../core/types";
 import { calEventColor, calTodoColor, normalizeCalendarColors } from "../core/types";
@@ -32,7 +33,7 @@ export function openSettingsDialog(ctx: PanelCtx): Promise<void> {
     const s = ctx.store.settings;
     // 移动端竖屏放不下 640px 定宽弹窗，改为占满视口
     const mobile = isMobile();
-    const dialog = new Dialog({
+    const dialog = newDialog({
       title: "CalDAV 同步设置",
       content: `<div class="caldav-settings">${settingsHtml(s, mobile)}</div>`,
       width: mobile ? "100vw" : "640px",

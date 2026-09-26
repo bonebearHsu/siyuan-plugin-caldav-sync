@@ -61,6 +61,8 @@ class Dialog {
     scrim.className = "b3-dialog__scrim";
 
     const container = document.createElement("div");
+    // 这里模拟思源 v3.2.0+ 的行为：containerClassName 会被拼进 b3-dialog__container
+    // 的 class。本插件 minAppVersion 已提到 3.2.0，挂类完全由思源负责（插件不自己动手）。
     container.className = "b3-dialog__container" + (options.containerClassName ? " " + options.containerClassName : "");
     container.style.width = options.width || "auto";
     container.style.height = options.height || "auto";

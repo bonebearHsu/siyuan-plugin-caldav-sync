@@ -681,10 +681,15 @@ assert.strictEqual(cal0.color, "#ff5252", "旧 color 字段应镜像 eventColor�
 click(tabEl.querySelector('[data-view="month"]'));
 const chipStyle = (key) =>
   (tabEl.querySelector(`.cal-chip-month[data-open="${key}"]`)?.style.getPropertyValue("--cal-color") || "").trim();
-assert.strictEqual(chipStyle("seed-1@test|event"), "#ff5252", "无分类的日程应使用日历的日程默认色");
-// seed-11 是逾期未完成的待办（当天格子放不下会折叠，挑一个必定可见的）
-assert.strictEqual(chipStyle("seed-11@test|todo"), "#00c853", "无分类的待办应使用日历的待办默认色");
-assert.notStrictEqual(chipStyle("seed-11@test|todo"), chipStyle("seed-1@test|event"), "同一日历下日程/待办默认色应互相独立");
+// ⚠️ 这里**不要绑定到具体条目**：月视图每个格子只渲染前 3 条（其余收进「还有 N 项…」），
+// 而排序会把「已结束的日程」压到后面 —— 于是「seed-1 可见不可见」会随跑测试的时刻变化，
+// 上午跑和深夜跑结论不同（深夜时当天日程全已结束，排序结果不一样）。按类型取任意一条
+// 可见的 chip，断言的意图（日程取 eventColor、待办取 todoColor）完全一致，且不再看时钟脸色。
+const chipStyleOfKind = (kind) =>
+  (tabEl.querySelector(`.cal-chip-month[data-open$="|${kind}"]`)?.style.getPropertyValue("--cal-color") || "").trim();
+assert.strictEqual(chipStyleOfKind("event"), "#ff5252", "无分类的日程应使用日历的日程默认色");
+assert.strictEqual(chipStyleOfKind("todo"), "#00c853", "无分类的待办应使用日历的待办默认色");
+assert.notStrictEqual(chipStyleOfKind("event"), chipStyleOfKind("todo"), "同一日历下日程/待办默认色应互相独立");
 
 // ---- 「分类色优先于默认日程/待办色」这条老规则不能被本次改动破坏 ----
 const catItem = plugin.store.getAll().find((it) => it.uid === "seed-11@test");

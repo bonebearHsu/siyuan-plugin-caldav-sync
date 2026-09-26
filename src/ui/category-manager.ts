@@ -1,7 +1,7 @@
 /**
  * 分类管理弹窗：添加/编辑/删除/排序任务分类，保存后写入 store.settings.categories
  */
-import { Dialog } from "siyuan";
+import { newDialog } from "@/ui/dialog";
 import { isMobile } from "./device";
 import { adoptMobileLayer } from "./mobile-layers";
 import type { CategoryDef } from "../core/types";
@@ -77,7 +77,7 @@ export function openCategoryManager(ctx: PanelCtx): void {
 
   // 移动端竖屏放不下 500px 定宽弹窗，改为占满视口
   const mobile = isMobile();
-  const dialog = new Dialog({
+  const dialog = newDialog({
     title: "分类管理",
     content: `<div class="caldav-catmgr caldav-editor">${mgrHtml(cats)}</div>`,
     width: mobile ? "100vw" : "500px",

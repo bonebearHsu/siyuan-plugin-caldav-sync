@@ -630,7 +630,8 @@ const DOCK_FILTERS: Array<{ key: DockFilter; label: string }> = [
 export interface DockPanelOpts {
   store: CalStore;
   onNav: (mode: ViewMode) => void;
-  onSync: () => unknown;
+  /** 返回 Promise 才能被 .finally/.catch 链（写成 () => unknown 会在调用处报 TS2571） */
+  onSync: () => Promise<unknown>;
   onSettings: () => void;
   onAddEvent: () => void;
   onAddTask: () => void;

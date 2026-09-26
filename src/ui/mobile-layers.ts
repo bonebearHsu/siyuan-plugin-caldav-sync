@@ -17,8 +17,8 @@
  *
  * ★ 新增弹层时**必须**调用 adoptMobileLayer 登记，否则它既不会收掉下面的残留层、
  *   也不会被后续的开层动作认领 —— 用户看到的就是「这一页要连点好几次才关得掉」。
- *   插件里所有 `new Dialog` 的位置：index.ts（移动端面板）、editor.ts、settings-dialog.ts、
- *   category-manager.ts；加新的务必一并登记。
+ *   插件里所有弹层都由 ui/dialog.ts 的 newDialog() 创建（index.ts 移动端面板、
+ *   editor.ts、settings-dialog.ts、category-manager.ts）；加新的务必一并登记。
  *
  * ★ 关键：**以 DOM 为准，不靠引用记账**。
  *   1) 思源的 `Dialog.destroy()` 是异步的 —— 先摘掉 `b3-dialog--open` 让容器淡出，

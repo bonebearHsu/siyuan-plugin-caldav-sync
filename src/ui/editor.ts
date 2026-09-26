@@ -2,6 +2,7 @@
  * 日程 / 待办编辑弹窗（基于思源 Dialog）
  */
 import { Dialog } from "siyuan";
+import { newDialog } from "@/ui/dialog";
 import { isMobile } from "./device";
 import { adoptMobileLayer } from "./mobile-layers";
 import type { Alarm, CalCalendar, CalItem, CalKind, CategoryDef, Recurrence } from "../core/types";
@@ -59,7 +60,7 @@ export function openEditor(ctx: PanelCtx, preset: EditorPreset): void {
   // 移动端竖屏（375~430px）放不下 520/560px 定宽弹窗，改为占满视口
   const mobile = isMobile();
 
-  const dialog = new Dialog({
+  const dialog = newDialog({
     title: isNew ? (isTodo ? "新建待办" : "新建日程") : "编辑" + (isTodo ? "待办" : "日程"),
     content: `<div class="caldav-editor">${editorHtml(it, cals, ctx.store.settings.categories?.length ? ctx.store.settings.categories : DEFAULT_CATEGORIES, !!ctx.store.settings.categoryMulti, isNew)}</div>`,
     width: mobile ? "100vw" : isTodo ? "560px" : "520px",
